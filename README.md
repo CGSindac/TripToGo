@@ -8,16 +8,16 @@ It was built as an academic project to show Object-Oriented Programming (encapsu
 
 
 # **Table of Contents (DRAFT)**
-Features
-Tech Stack & Prerequisite
-Installation
-Usage
-Configuration
-Project Structure
-Limitations
-Contributing
-License (not sure)
-Acknowledgements (team members)
+1. Features
+2. Tech Stack & Prerequisite
+3. Installation
+4. Usage
+5. Configuration
+6. Project Structure
+7. Limitations
+8. Contributing
+9. License (not sure)
+10. Acknowledgements (team members)
 
 ## **Features**
 1. Accounts: sign up and log in to save your preferences.
@@ -27,9 +27,6 @@ Acknowledgements (team members)
 5. Admin tools: admins can manage users, reviews, and place information.
 
 ## Tech Stack & Prerequisite
-
-## Development Prerequisites
-
 | Tool | Version / Recommendation |
 | :--- | :--- |
 | **Java (JDK)** | 17 or later |
@@ -72,24 +69,19 @@ For ADMINS:
 
 
 ## **Configuration** (N/A)
-
-
-
 ## **Project Structure** (N/A)
-
-
 
 ## Limitations
 
 TripToGo covers Lipa City, Batangas only, and these are not included:
 
-❌ GPS detection and real-time navigation
-❌ AI-based recommendations
-❌ Online payments
-❌ Bookings and reservations
-❌ Live traffic and interactive maps
-❌ Places outside Lipa City
-❌ Automated review moderation
+- ❌ GPS detection and real-time navigation
+- ❌ AI-based recommendations
+- ❌ Online payments
+- ❌ Bookings and reservations
+- ❌ Live traffic and interactive maps
+- ❌ Places outside Lipa City
+- ❌ Automated review moderation
 
 Place data is collected manually, so prices and hours may be out of date.
 ## Contributing (not sure)
