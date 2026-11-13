@@ -1,5 +1,6 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+
 import {
   View,
   Text,
@@ -7,8 +8,125 @@ import {
   StyleSheet,
   useWindowDimensions,
   StatusBar,
+  Animated,
 } from 'react-native';
 
+
+// FLOATING IMAGE COMPONENT
+const FloatingShape = ({
+  source,
+  style,
+  duration = 3000,
+  distance = 12,
+  rotation = '10deg',
+}) => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [floatAnim, duration]);
+
+  const translateY = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -distance],
+  });
+
+  const rotate = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', rotation],
+  });
+
+  return (
+    <Animated.Image
+      source={source}
+      style={[
+        style,
+        {
+          transform: [
+            { translateY },
+            { rotate },
+          ],
+        },
+      ]}
+      resizeMode="contain"
+    />
+  );
+};
+
+
+// FLOATING CIRCLE COMPONENT
+const FloatingCircle = ({
+  style,
+  duration = 2500,
+  distance = 8,
+}) => {
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [floatAnim, duration]);
+
+  const translateY = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -distance],
+  });
+
+  const scale = floatAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 1.12, 1],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          transform: [
+            { translateY },
+            { scale },
+          ],
+        },
+      ]}
+    />
+  );
+};
+
+
+// MAIN SPLASH SCREEN
 export default function SplashScreen() {
   const { width, height } = useWindowDimensions();
 
@@ -16,111 +134,187 @@ export default function SplashScreen() {
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {/*DECORATIVE CIRCLES & DOTS*/}
+      {/* DECORATIVE CIRCLES & DOTS */}
 
-      <View style={[styles.circle, {
-        top: height * 0.12,
-        left: width * 0.75,
-      }]} />
+      <FloatingCircle
+        style={[
+          styles.circle,
+          {
+            top: height * 0.12,
+            left: width * 0.75,
+          },
+        ]}
+        duration={2800}
+      />
 
-      <View style={[styles.smallCircle, {
-        top: height * 0.35,
-        left: width * 0.20,
-      }]} />
+      <FloatingCircle
+        style={[
+          styles.smallCircle,
+          {
+            top: height * 0.35,
+            left: width * 0.20,
+          },
+        ]}
+        duration={3200}
+      />
 
-      <View style={[styles.purpleCircle, {
-        top: height * 0.40,
-        right: width * 0.08,
-      }]} />
+      <FloatingCircle
+        style={[
+          styles.purpleCircle,
+          {
+            top: height * 0.40,
+            right: width * 0.08,
+          },
+        ]}
+        duration={2400}
+      />
 
-      <View style={[styles.yellowDot, {
-        top: height * 0.53,
-        left: width * 0.17,
-      }]} />
+      <FloatingCircle
+        style={[
+          styles.yellowDot,
+          {
+            top: height * 0.53,
+            left: width * 0.17,
+          },
+        ]}
+        duration={3000}
+      />
 
-      <View style={[styles.purpleCircle, {
-        top: height * 0.78,
-        right: width * 0.15,
-      }]} />
+      <FloatingCircle
+        style={[
+          styles.purpleCircle,
+          {
+            top: height * 0.78,
+            right: width * 0.15,
+          },
+        ]}
+        duration={3500}
+      />
 
-      <View style={[styles.smallCircle, {
-        top: height * 0.88,
-        left: width * 0.72,
-      }]} />
+      <FloatingCircle
+        style={[
+          styles.smallCircle,
+          {
+            top: height * 0.88,
+            left: width * 0.72,
+          },
+        ]}
+        duration={2700}
+      />
 
-      <View style={[styles.yellowDot, {
-        top: height * 0.91,
-        left: width * 0.28,
-      }]} />
+      <FloatingCircle
+        style={[
+          styles.yellowDot,
+          {
+            top: height * 0.91,
+            left: width * 0.28,
+          },
+        ]}
+        duration={3300}
+      />
 
 
       {/* DECORATIVE IMAGE ELEMENTS */}
 
-      <Image
+      <FloatingShape
         source={require('../../assets/images/shape-sparkle.png')}
-        style={[styles.sparkle, {
-          top: height * 0.11,
-          left: width * 0.15,
-        }]}
-        resizeMode="contain"
+        style={[
+          styles.sparkle,
+          {
+            top: height * 0.11,
+            left: width * 0.15,
+          },
+        ]}
+        duration={2500}
+        rotation="15deg"
       />
 
-      <Image
+      <FloatingShape
         source={require('../../assets/images/shape-sun.png')}
-        style={[styles.sun, {
-          top: height * 0.19,
-          right: width * 0.12,
-        }]}
-        resizeMode="contain"
+        style={[
+          styles.sun,
+          {
+            top: height * 0.19,
+            right: width * 0.12,
+          },
+        ]}
+        duration={3800}
+        distance={15}
+        rotation="-8deg"
       />
 
-      <Image
+      <FloatingShape
         source={require('../../assets/images/shape-blob.png')}
-        style={[styles.blob, {
-          top: height * 0.22,
-          left: width * 0.08,
-        }]}
-        resizeMode="contain"
+        style={[
+          styles.blob,
+          {
+            top: height * 0.22,
+            left: width * 0.08,
+          },
+        ]}
+        duration={4200}
+        distance={10}
+        rotation="12deg"
       />
 
-      <Image
+      <FloatingShape
         source={require('../../assets/images/shape-squiggle.png')}
-        style={[styles.squiggle, {
-          top: height * 0.32,
-          right: width * 0.10,
-        }]}
-        resizeMode="contain"
+        style={[
+          styles.squiggle,
+          {
+            top: height * 0.32,
+            right: width * 0.10,
+          },
+        ]}
+        duration={3200}
+        distance={12}
+        rotation="-10deg"
       />
 
-      <Image
+      <FloatingShape
         source={require('../../assets/images/shape-compass.png')}
-        style={[styles.compass, {
-          top: height * 0.70,
-          left: width * 0.09,
-        }]}
-        resizeMode="contain"
+        style={[
+          styles.compass,
+          {
+            top: height * 0.70,
+            left: width * 0.09,
+          },
+        ]}
+        duration={3500}
+        distance={14}
+        rotation="18deg"
       />
 
-      <Image
+      <FloatingShape
         source={require('../../assets/images/shape-sparkle.png')}
-        style={[styles.smallSparkle, {
-          top: height * 0.70,
-          right: width * 0.12,
-        }]}
-        resizeMode="contain"
+        style={[
+          styles.smallSparkle,
+          {
+            top: height * 0.70,
+            right: width * 0.12,
+          },
+        ]}
+        duration={2300}
+        distance={10}
+        rotation="-15deg"
       />
 
-      <Image
+      <FloatingShape
         source={require('../../assets/images/shape-squiggle.png')}
-        style={[styles.bottomSquiggle, {
-          top: height * 0.81,
-          left: width * 0.10,
-        }]}
-        resizeMode="contain"
+        style={[
+          styles.bottomSquiggle,
+          {
+            top: height * 0.81,
+            left: width * 0.10,
+          },
+        ]}
+        duration={4000}
+        distance={12}
+        rotation="8deg"
       />
 
 
-      {/* MAIN LOGO & APP NAME*/}
+      {/* MAIN LOGO & APP NAME */}
 
       <View style={styles.logoContainer}>
 
@@ -145,6 +339,7 @@ export default function SplashScreen() {
 }
 
 
+// STYLES
 const styles = StyleSheet.create({
 
   // Main screen
