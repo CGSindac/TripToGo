@@ -9,124 +9,178 @@ import {
   useWindowDimensions,
   StatusBar,
   Animated,
+  Easing,
 } from 'react-native';
 
 
-// FLOATING IMAGE COMPONENT
-const FloatingShape = ({
-  source,
+// ========================================
+// ANIMATED ENTRANCE COMPONENT
+// ========================================
+
+const AnimatedEntrance = ({
+  children,
   style,
-  duration = 3000,
-  distance = 12,
-  rotation = '10deg',
+  fromX = 0,
+  fromY = 0,
+  delay = 0,
+  duration = 650,
+  scaleFrom = 0.3,
+  floatDistance = 10,
+  floatDuration = 3000,
+  rotation = '6deg',
+  idle = true,
 }) => {
+  const entrance = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
+    let floatingAnimation;
+
+    const entranceAnimation = Animated.sequence([
+      Animated.delay(delay),
+
+      Animated.parallel([
+        Animated.timing(entrance, {
           toValue: 1,
           duration,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
-        Animated.timing(floatAnim, {
+
+        Animated.spring(floatAnim, {
           toValue: 0,
-          duration,
+          speed: 12,
+          bounciness: 10,
           useNativeDriver: true,
         }),
-      ])
-    );
+      ]),
+    ]);
 
-    animation.start();
+    // Start floating after entrance
+    const startFloating = () => {
+      if (!idle) return;
 
-    return () => animation.stop();
-  }, [floatAnim, duration]);
+      floatingAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(floatAnim, {
+            toValue: 1,
+            duration: floatDuration,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
 
-  const translateY = floatAnim.interpolate({
+          Animated.timing(floatAnim, {
+            toValue: 0,
+            duration: floatDuration,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+
+      floatingAnimation.start();
+    };
+
+    // Entrance animation
+    const animation = Animated.sequence([
+      Animated.delay(delay),
+
+      Animated.parallel([
+        Animated.timing(entrance, {
+          toValue: 1,
+          duration,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+
+        Animated.spring(floatAnim, {
+          toValue: 0,
+          speed: 12,
+          bounciness: 10,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]);
+
+    animation.start(({ finished }) => {
+      if (finished) {
+        startFloating();
+      }
+    });
+
+    return () => {
+      animation.stop();
+      floatingAnimation?.stop();
+    };
+  }, [
+    entrance,
+    floatAnim,
+    delay,
+    duration,
+    floatDuration,
+    idle,
+  ]);
+
+  // Entrance movement
+  const translateX = entrance.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, -distance],
+    outputRange: [fromX, 0],
   });
 
+  const entranceY = entrance.interpolate({
+    inputRange: [0, 1],
+    outputRange: [fromY, 0],
+  });
+
+  // Continuous floating movement
+  const floatingY = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -floatDistance],
+  });
+
+  const translateY = Animated.add(entranceY, floatingY);
+
+  // Pop effect
+  const scale = entrance.interpolate({
+    inputRange: [0, 1],
+    outputRange: [scaleFrom, 1],
+  });
+
+  // Fade in
+  const opacity = entrance;
+
+  // Gentle rotation
   const rotate = floatAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', rotation],
   });
 
   return (
-    <Animated.Image
-      source={source}
+    <Animated.View
+      pointerEvents="none"
       style={[
         style,
         {
+          opacity,
           transform: [
+            { translateX },
             { translateY },
+            { scale },
             { rotate },
           ],
         },
       ]}
-      resizeMode="contain"
-    />
+    >
+      {children}
+    </Animated.View>
   );
 };
 
 
-// FLOATING CIRCLE COMPONENT
-const FloatingCircle = ({
-  style,
-  duration = 2500,
-  distance = 8,
-}) => {
-  const floatAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    animation.start();
-
-    return () => animation.stop();
-  }, [floatAnim, duration]);
-
-  const translateY = floatAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -distance],
-  });
-
-  const scale = floatAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [1, 1.12, 1],
-  });
-
-  return (
-    <Animated.View
-      style={[
-        style,
-        {
-          transform: [
-            { translateY },
-            { scale },
-          ],
-        },
-      ]}
-    />
-  );
-};
-
-
+// ========================================
 // MAIN SPLASH SCREEN
+// ========================================
+
 export default function SplashScreen() {
   const { width, height } = useWindowDimensions();
 
@@ -134,9 +188,11 @@ export default function SplashScreen() {
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {/* DECORATIVE CIRCLES & DOTS */}
+      {/* ================================== */}
+      {/* DECORATIVE CIRCLES AND DOTS */}
+      {/* ================================== */}
 
-      <FloatingCircle
+      <AnimatedEntrance
         style={[
           styles.circle,
           {
@@ -144,10 +200,14 @@ export default function SplashScreen() {
             left: width * 0.75,
           },
         ]}
-        duration={2800}
+        fromX={130}
+        fromY={-50}
+        delay={100}
+        duration={650}
+        floatDuration={2800}
       />
 
-      <FloatingCircle
+      <AnimatedEntrance
         style={[
           styles.smallCircle,
           {
@@ -155,10 +215,14 @@ export default function SplashScreen() {
             left: width * 0.20,
           },
         ]}
-        duration={3200}
+        fromX={-120}
+        fromY={0}
+        delay={250}
+        duration={600}
+        floatDuration={3200}
       />
 
-      <FloatingCircle
+      <AnimatedEntrance
         style={[
           styles.purpleCircle,
           {
@@ -166,10 +230,14 @@ export default function SplashScreen() {
             right: width * 0.08,
           },
         ]}
-        duration={2400}
+        fromX={140}
+        fromY={20}
+        delay={350}
+        duration={650}
+        floatDuration={2600}
       />
 
-      <FloatingCircle
+      <AnimatedEntrance
         style={[
           styles.yellowDot,
           {
@@ -177,10 +245,14 @@ export default function SplashScreen() {
             left: width * 0.17,
           },
         ]}
-        duration={3000}
+        fromX={-100}
+        fromY={30}
+        delay={450}
+        duration={600}
+        floatDuration={3000}
       />
 
-      <FloatingCircle
+      <AnimatedEntrance
         style={[
           styles.purpleCircle,
           {
@@ -188,10 +260,14 @@ export default function SplashScreen() {
             right: width * 0.15,
           },
         ]}
-        duration={3500}
+        fromX={150}
+        fromY={50}
+        delay={550}
+        duration={700}
+        floatDuration={3500}
       />
 
-      <FloatingCircle
+      <AnimatedEntrance
         style={[
           styles.smallCircle,
           {
@@ -199,10 +275,14 @@ export default function SplashScreen() {
             left: width * 0.72,
           },
         ]}
-        duration={2700}
+        fromX={100}
+        fromY={70}
+        delay={650}
+        duration={650}
+        floatDuration={2700}
       />
 
-      <FloatingCircle
+      <AnimatedEntrance
         style={[
           styles.yellowDot,
           {
@@ -210,14 +290,20 @@ export default function SplashScreen() {
             left: width * 0.28,
           },
         ]}
-        duration={3300}
+        fromX={-120}
+        fromY={80}
+        delay={700}
+        duration={650}
+        floatDuration={3300}
       />
 
 
+      {/* ================================== */}
       {/* DECORATIVE IMAGE ELEMENTS */}
+      {/* ================================== */}
 
-      <FloatingShape
-        source={require('../../assets/images/shape-sparkle.png')}
+      {/* Sparkle */}
+      <AnimatedEntrance
         style={[
           styles.sparkle,
           {
@@ -225,12 +311,24 @@ export default function SplashScreen() {
             left: width * 0.15,
           },
         ]}
-        duration={2500}
-        rotation="15deg"
-      />
+        fromX={-160}
+        fromY={-30}
+        delay={0}
+        duration={750}
+        scaleFrom={0.2}
+        rotation="12deg"
+        floatDuration={2500}
+      >
+        <Image
+          source={require('../../assets/images/shape-sparkle.png')}
+          style={styles.imageFill}
+          resizeMode="contain"
+        />
+      </AnimatedEntrance>
 
-      <FloatingShape
-        source={require('../../assets/images/shape-sun.png')}
+
+      {/* Sun */}
+      <AnimatedEntrance
         style={[
           styles.sun,
           {
@@ -238,13 +336,25 @@ export default function SplashScreen() {
             right: width * 0.12,
           },
         ]}
-        duration={3800}
-        distance={15}
+        fromX={160}
+        fromY={-80}
+        delay={150}
+        duration={800}
+        scaleFrom={0.3}
         rotation="-8deg"
-      />
+        floatDistance={14}
+        floatDuration={3800}
+      >
+        <Image
+          source={require('../../assets/images/shape-sun.png')}
+          style={styles.imageFill}
+          resizeMode="contain"
+        />
+      </AnimatedEntrance>
 
-      <FloatingShape
-        source={require('../../assets/images/shape-blob.png')}
+
+      {/* Blob */}
+      <AnimatedEntrance
         style={[
           styles.blob,
           {
@@ -252,13 +362,25 @@ export default function SplashScreen() {
             left: width * 0.08,
           },
         ]}
-        duration={4200}
-        distance={10}
-        rotation="12deg"
-      />
+        fromX={-150}
+        fromY={20}
+        delay={250}
+        duration={750}
+        scaleFrom={0.3}
+        rotation="10deg"
+        floatDistance={10}
+        floatDuration={4200}
+      >
+        <Image
+          source={require('../../assets/images/shape-blob.png')}
+          style={styles.imageFill}
+          resizeMode="contain"
+        />
+      </AnimatedEntrance>
 
-      <FloatingShape
-        source={require('../../assets/images/shape-squiggle.png')}
+
+      {/* Squiggle */}
+      <AnimatedEntrance
         style={[
           styles.squiggle,
           {
@@ -266,13 +388,24 @@ export default function SplashScreen() {
             right: width * 0.10,
           },
         ]}
-        duration={3200}
-        distance={12}
-        rotation="-10deg"
-      />
+        fromX={160}
+        fromY={-20}
+        delay={350}
+        duration={800}
+        scaleFrom={0.4}
+        rotation="-8deg"
+        floatDuration={3200}
+      >
+        <Image
+          source={require('../../assets/images/shape-squiggle.png')}
+          style={styles.imageFill}
+          resizeMode="contain"
+        />
+      </AnimatedEntrance>
 
-      <FloatingShape
-        source={require('../../assets/images/shape-compass.png')}
+
+      {/* Compass */}
+      <AnimatedEntrance
         style={[
           styles.compass,
           {
@@ -280,13 +413,25 @@ export default function SplashScreen() {
             left: width * 0.09,
           },
         ]}
-        duration={3500}
-        distance={14}
-        rotation="18deg"
-      />
+        fromX={-150}
+        fromY={80}
+        delay={450}
+        duration={850}
+        scaleFrom={0.2}
+        rotation="15deg"
+        floatDistance={14}
+        floatDuration={3500}
+      >
+        <Image
+          source={require('../../assets/images/shape-compass.png')}
+          style={styles.imageFill}
+          resizeMode="contain"
+        />
+      </AnimatedEntrance>
 
-      <FloatingShape
-        source={require('../../assets/images/shape-sparkle.png')}
+
+      {/* Small sparkle */}
+      <AnimatedEntrance
         style={[
           styles.smallSparkle,
           {
@@ -294,13 +439,24 @@ export default function SplashScreen() {
             right: width * 0.12,
           },
         ]}
-        duration={2300}
-        distance={10}
+        fromX={150}
+        fromY={70}
+        delay={550}
+        duration={700}
+        scaleFrom={0.2}
         rotation="-15deg"
-      />
+        floatDuration={2300}
+      >
+        <Image
+          source={require('../../assets/images/shape-sparkle.png')}
+          style={styles.imageFill}
+          resizeMode="contain"
+        />
+      </AnimatedEntrance>
 
-      <FloatingShape
-        source={require('../../assets/images/shape-squiggle.png')}
+
+      {/* Bottom squiggle */}
+      <AnimatedEntrance
         style={[
           styles.bottomSquiggle,
           {
@@ -308,38 +464,64 @@ export default function SplashScreen() {
             left: width * 0.10,
           },
         ]}
-        duration={4000}
-        distance={12}
+        fromX={-160}
+        fromY={100}
+        delay={650}
+        duration={850}
+        scaleFrom={0.4}
         rotation="8deg"
-      />
-
-
-      {/* MAIN LOGO & APP NAME */}
-
-      <View style={styles.logoContainer}>
-
+        floatDistance={12}
+        floatDuration={4000}
+      >
         <Image
-          source={require('../../assets/images/splash-logo.png')}
-          style={styles.logo}
+          source={require('../../assets/images/shape-squiggle.png')}
+          style={styles.imageFill}
           resizeMode="contain"
         />
+      </AnimatedEntrance>
 
-        <Text style={styles.appName}>
-          Trip<Text style={styles.purple}>To</Text>Go
-        </Text>
 
-        <Text style={styles.tagline}>
-          Unfold your next trip.
-        </Text>
+      {/* ================================== */}
+      {/* MAIN LOGO AND APP NAME */}
+      {/* ================================== */}
 
-      </View>
+      <AnimatedEntrance
+        style={styles.logoEntrance}
+        fromX={0}
+        fromY={25}
+        delay={550}
+        duration={900}
+        scaleFrom={0.75}
+        idle={false}
+      >
+        <View style={styles.logoContainer}>
+
+          <Image
+            source={require('../../assets/images/splash-logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+
+          <Text style={styles.appName}>
+            Trip<Text style={styles.purple}>To</Text>Go
+          </Text>
+
+          <Text style={styles.tagline}>
+            Unfold your next trip.
+          </Text>
+
+        </View>
+      </AnimatedEntrance>
 
     </View>
   );
 }
 
 
+// ========================================
 // STYLES
+// ========================================
+
 const styles = StyleSheet.create({
 
   // Main screen
@@ -352,11 +534,16 @@ const styles = StyleSheet.create({
   },
 
 
-  // Main logo container
-  logoContainer: {
+  // Main logo
+  logoEntrance: {
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
+  },
+
+  logoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   logo: {
@@ -460,6 +647,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 100,
     height: 45,
+  },
+
+  imageFill: {
+    width: '100%',
+    height: '100%',
   },
 
 });
