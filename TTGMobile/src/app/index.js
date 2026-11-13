@@ -16,13 +16,53 @@ export default function SplashScreen() {
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {/* Decorative elements */}
+      {/*DECORATIVE CIRCLES & DOTS*/}
+
+      <View style={[styles.circle, {
+        top: height * 0.12,
+        left: width * 0.75,
+      }]} />
+
+      <View style={[styles.smallCircle, {
+        top: height * 0.35,
+        left: width * 0.20,
+      }]} />
+
+      <View style={[styles.purpleCircle, {
+        top: height * 0.40,
+        right: width * 0.08,
+      }]} />
+
+      <View style={[styles.yellowDot, {
+        top: height * 0.53,
+        left: width * 0.17,
+      }]} />
+
+      <View style={[styles.purpleCircle, {
+        top: height * 0.78,
+        right: width * 0.15,
+      }]} />
+
+      <View style={[styles.smallCircle, {
+        top: height * 0.88,
+        left: width * 0.72,
+      }]} />
+
+      <View style={[styles.yellowDot, {
+        top: height * 0.91,
+        left: width * 0.28,
+      }]} />
+
+
+      {/* DECORATIVE IMAGE ELEMENTS */}
+
       <Image
         source={require('../../assets/images/shape-sparkle.png')}
         style={[styles.sparkle, {
           top: height * 0.11,
           left: width * 0.15,
         }]}
+        resizeMode="contain"
       />
 
       <Image
@@ -31,30 +71,34 @@ export default function SplashScreen() {
           top: height * 0.19,
           right: width * 0.12,
         }]}
+        resizeMode="contain"
       />
 
       <Image
         source={require('../../assets/images/shape-blob.png')}
         style={[styles.blob, {
-          top: height * 0.29,
+          top: height * 0.22,
           left: width * 0.08,
         }]}
+        resizeMode="contain"
       />
 
       <Image
         source={require('../../assets/images/shape-squiggle.png')}
         style={[styles.squiggle, {
-          top: height * 0.36,
+          top: height * 0.32,
           right: width * 0.10,
         }]}
+        resizeMode="contain"
       />
 
       <Image
         source={require('../../assets/images/shape-compass.png')}
         style={[styles.compass, {
-          top: height * 0.67,
+          top: height * 0.70,
           left: width * 0.09,
         }]}
+        resizeMode="contain"
       />
 
       <Image
@@ -63,6 +107,7 @@ export default function SplashScreen() {
           top: height * 0.70,
           right: width * 0.12,
         }]}
+        resizeMode="contain"
       />
 
       <Image
@@ -71,10 +116,14 @@ export default function SplashScreen() {
           top: height * 0.81,
           left: width * 0.10,
         }]}
+        resizeMode="contain"
       />
 
-      {/* Main logo and app name */}
+
+      {/* MAIN LOGO & APP NAME*/}
+
       <View style={styles.logoContainer}>
+
         <Image
           source={require('../../assets/images/splash-logo.png')}
           style={styles.logo}
@@ -88,23 +137,31 @@ export default function SplashScreen() {
         <Text style={styles.tagline}>
           Unfold your next trip.
         </Text>
+
       </View>
 
     </View>
   );
 }
 
+
 const styles = StyleSheet.create({
+
+  // Main screen
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
 
+
+  // Main logo container
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
 
   logo: {
@@ -117,6 +174,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#17143D',
     marginTop: 25,
+    letterSpacing: 0.5,
   },
 
   purple: {
@@ -128,8 +186,45 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#625F7D',
     marginTop: 12,
+    letterSpacing: 0.3,
   },
 
+
+  // Decorative circles
+  circle: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderRadius: 50,
+    backgroundColor: '#FCE38A',
+  },
+
+  smallCircle: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 50,
+    backgroundColor: '#A83DEB',
+  },
+
+  purpleCircle: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderRadius: 50,
+    backgroundColor: '#A83DEB',
+  },
+
+  yellowDot: {
+    position: 'absolute',
+    width: 9,
+    height: 9,
+    borderRadius: 50,
+    backgroundColor: '#FCE38A',
+  },
+
+
+  // Decorative images
   sparkle: {
     position: 'absolute',
     width: 35,
@@ -156,8 +251,8 @@ const styles = StyleSheet.create({
 
   compass: {
     position: 'absolute',
-    width: 55,
-    height: 55,
+    width: 45,
+    height: 45,
   },
 
   smallSparkle: {
@@ -171,4 +266,5 @@ const styles = StyleSheet.create({
     width: 100,
     height: 45,
   },
+
 });
