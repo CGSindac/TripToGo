@@ -1,5 +1,5 @@
-
 import React, { useEffect, useRef } from 'react';
+import { useRouter } from 'expo-router';
 
 import {
   View,
@@ -183,6 +183,16 @@ const AnimatedEntrance = ({
 
 export default function SplashScreen() {
   const { width, height } = useWindowDimensions();
+  const router = useRouter();
+
+  // Navigate to Welcome Screen after splash animation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.replace('/welcome');
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [router]);
 
   return (
     <View style={styles.container}>
@@ -299,7 +309,7 @@ export default function SplashScreen() {
 
 
       {/* ================================== */}
-      {/* DECORATIVE IMAGE ELEMENTS */}
+      {/* DECORATIVE SHAPE ELEMENTS */}
       {/* ================================== */}
 
       {/* Sparkle */}
