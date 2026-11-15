@@ -1,4 +1,4 @@
-package com.TripToGo.TTGBackend.User;
+package com.TripToGo.TTGBackend.Controllers;
 
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;
