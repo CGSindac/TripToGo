@@ -3,8 +3,6 @@ package com.TripToGo.TTGBackend.DTOs;
 
 import java.time.LocalDateTime;
 
-import com.TripToGo.TTGBackend.Models.User;
-
 public class UserDTO {
 
     private Integer userId;
@@ -12,19 +10,12 @@ public class UserDTO {
     private String email;
     private String role;
     private LocalDateTime creationDate;
-   
 
     // Constructor
-    public UserDTO(User user) {
-        this.userId = user.getUserId();
-        this.username = user.getUsername();
-        this.email = user.getEmail();
-        this.role = user.getRole();
-        this.creationDate = user.getCreationDate();
+    public UserDTO() {
     }
 
     // Getters
-     // password_hash is removed since it is secured h
     public Integer getUserId() {
         return userId;
     }
@@ -43,5 +34,26 @@ public class UserDTO {
 
     public LocalDateTime getCreationDate() {
         return creationDate;
+    }
+
+    // Setters
+    public void setUserId(Integer userId) {
+        this.userId = userId;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public void setCreationDate(LocalDateTime creationDate) {
+        this.creationDate = creationDate;
     }
 }
