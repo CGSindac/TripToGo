@@ -2,6 +2,8 @@ package com.TripToGo.TTGBackend.Models;
 
 import java.time.LocalDateTime;
 
+import java.util.List;
+
 import org.hibernate.annotations.CreationTimestamp;
 
 import jakarta.persistence.Column;
@@ -9,6 +11,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 @Entity 
@@ -35,6 +38,12 @@ public class User {
     @CreationTimestamp 
     @Column (name = "created_at", nullable = false, updatable = false)
     private LocalDateTime creationDate;
+
+    @OneToMany (mappedBy = "user")
+    private List<Review> authoredReviews;
+
+    @OneToMany (mappedBy = "verifiedBy")
+    private List<Review> verifiedReviews;
 
     // Getters
     public Integer getUserId() { return userId; }
