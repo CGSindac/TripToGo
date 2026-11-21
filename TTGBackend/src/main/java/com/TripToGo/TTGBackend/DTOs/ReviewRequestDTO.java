@@ -1,5 +1,5 @@
 package com.TripToGo.TTGBackend.DTOs;
 
-public class RecviewControllerDTO {
+public class ReviewRequestDTO {
     
 }
