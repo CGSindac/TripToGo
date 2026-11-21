@@ -43,7 +43,7 @@ public class Location {
     private String description;
 
     @Column (name = "enjoyment_rating")
-    private float enojymentRating = 0.0f;
+    private float enjoymentRating = 0.0f;
 
     @Column (name = "budget_rating")
     private float budgetRating = 0.0f;
@@ -68,7 +68,7 @@ public class Location {
     public String getCity() { return city; }
     public String getBarangay() { return barangay; }
     public String getDescription() { return description; }
-    public float getEnjoymentRating() { return  enojymentRating; }
+    public float getEnjoymentRating() { return enjoymentRating; }
     public float getBudgetRating() { return budgetRating; }
     public Set<Tag> getTags() {return tags; }
 

@@ -36,7 +36,7 @@ public class Review {
     @Column (name = "budget_rating", nullable = false)
     private int budgetRating;
 
-    @Column (name = "stat", length = 4)
+    @Column (name = "stat", length = 20)
     private String status = "PENDING"; // TODO: Implement Status Enum
 
     @ManyToOne(fetch = FetchType.LAZY)

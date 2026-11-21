@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE reviews
+    ALTER COLUMN stat TYPE VARCHAR(20);
+
+COMMIT;
