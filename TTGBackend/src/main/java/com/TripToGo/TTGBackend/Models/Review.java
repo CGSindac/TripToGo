@@ -22,7 +22,6 @@ public class Review {
     @Column (name = "review_id")
     private Integer reviewID;
     
-    // TODO: Add user_id, location_id, and verified_by
     @ManyToOne (fetch = FetchType.LAZY)
     @JoinColumn (name = "user_id")
     private User user;
