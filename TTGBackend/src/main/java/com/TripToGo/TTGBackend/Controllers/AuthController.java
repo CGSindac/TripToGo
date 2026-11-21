@@ -11,4 +11,5 @@ public class AuthController {
     {
         return "Users Endpoint healthy";
     }
+    
 }   
