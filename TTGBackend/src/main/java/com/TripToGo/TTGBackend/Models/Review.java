@@ -44,7 +44,7 @@ public class Review {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")
-    private User verifiedBy;
+    private Admin verifiedBy;
 
     @Column (name = "written_review")
     private String writtenReview;
@@ -63,7 +63,7 @@ public class Review {
     public LocalDateTime getCreationDate() { return creationDate; }
     public User getUser() { return user; }
     public Location getLocation() { return location; }
-    public User getVerifiedBy() { return verifiedBy; }
+    public Admin getVerifiedBy() { return verifiedBy; }
 
     // Setters
     public void setEnjoymentRating(int enojymentRating) { this.enojymentRating = enojymentRating; }
@@ -72,5 +72,5 @@ public class Review {
     public void setWrittenReview(String writtenReview) { this.writtenReview = writtenReview; }
     public void setUser(User user) { this.user = user; }
     public void setLocation(Location location) {this.location = location; }
-    public void setVerifiedBy(User verifiedBy ) { this.verifiedBy = verifiedBy;}
+    public void setVerifiedBy(Admin verifiedBy ) { this.verifiedBy = verifiedBy;}
 }
