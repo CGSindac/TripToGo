@@ -1,4 +1,4 @@
-package com.TripToGo.TTGBackend.Location;
+package com.TripToGo.TTGBackend.Controllers;
 
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;

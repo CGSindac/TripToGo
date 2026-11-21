@@ -35,3 +35,9 @@ spring.jpa.properties.hibernate.format_sql=true
 spring.jpa.database=postgresql
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
 ```
+
+5. Initialize Database using ```init.sql``` found in ```TTGBackend/schemas/```.
+```psql
+\i '<path-to-init.sql>
+```
+

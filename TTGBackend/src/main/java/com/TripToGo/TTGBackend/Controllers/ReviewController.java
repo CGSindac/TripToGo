@@ -1,15 +1,14 @@
-package com.TripToGo.TTGBackend.Auth;
+package com.TripToGo.TTGBackend.Controllers;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController 
-public class AuthController {
-    
-    @GetMapping("/auth/health")
+public class ReviewController {
+
+    @GetMapping("/reviews/health")
     public String healthCheck()
     {
-        return "Users Endpoint healthy";
+        return "Review endpoint healthy";
     }
-    
-}   
+}
