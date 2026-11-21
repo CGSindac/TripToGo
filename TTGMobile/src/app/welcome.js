@@ -217,7 +217,7 @@ export default function Welcome() {
           style={[styles.heading, { fontSize: headingSize, lineHeight: Math.round(headingSize * 1.14) }]}
           accessibilityRole="header"
         >
-          TagLine.{'\n'}or Trip TO Go.
+          Trip To Go
         </Text>
         <Text style={styles.subtitle}>
           Lorem ipsum dolor sit amet consectetur adipiscing elit mollit dolore soluta eum voluptas ullamco odio
