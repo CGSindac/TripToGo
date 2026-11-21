@@ -3,6 +3,11 @@ package com.TripToGo.TTGBackend.Controllers;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;
 
+
+import com.TripToGo.TTGBackend.DTOs.UserDTO;
+import com.TripToGo.TTGBackend.DTOs.UserUpdateDTO;
+
+
 @RestController 
 public class Usercontroller {
 
