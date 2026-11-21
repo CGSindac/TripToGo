@@ -26,7 +26,6 @@ public class Tag {
     @Column (name = "tag_description")
     private String description;
 
-    // TODO: Map Many-To-Many Relationship with Location
     @ManyToMany (mappedBy = "tags")   
     private Set<Location> locations = new HashSet<>();
 
