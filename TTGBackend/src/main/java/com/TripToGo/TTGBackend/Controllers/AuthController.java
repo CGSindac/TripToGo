@@ -10,6 +10,5 @@ public class AuthController {
     public String healthCheck()
     {
         return "Users Endpoint healthy";
-    }
-    
+    }  
 }   
