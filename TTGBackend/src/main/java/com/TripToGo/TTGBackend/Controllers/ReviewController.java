@@ -19,10 +19,10 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.TripToGo.TTGBackend.DTOs.ReviewOptionsDTO.LocationOption;
-import com.TripToGo.TTGBackend.DTOs.ReviewOptionsDTO.TagOption;
-import com.TripToGo.TTGBackend.DTOs.ReviewRequestDTO;
-import com.TripToGo.TTGBackend.DTOs.ReviewResponseDTO;
+import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewRequestDTO;
+import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewResponseDTO;
+import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewOptionsDTO.LocationOption;
+import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewOptionsDTO.TagOption;
 import com.TripToGo.TTGBackend.Services.ReviewService;
 
 @RestController
