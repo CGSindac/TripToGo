@@ -1,5 +1,5 @@
 
-package com.TripToGo.TTGBackend.DTOs;
+package com.TripToGo.TTGBackend.DTOs.UserDTOs;
 
 import java.time.LocalDateTime;
 

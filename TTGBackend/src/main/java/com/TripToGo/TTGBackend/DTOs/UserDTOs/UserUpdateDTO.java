@@ -1,4 +1,4 @@
-package com.TripToGo.TTGBackend.DTOs;
+package com.TripToGo.TTGBackend.DTOs.UserDTOs;
 
 public class UserUpdateDTO {
     
