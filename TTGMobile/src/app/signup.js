@@ -707,8 +707,7 @@ export default function Signup() {
 
         <PrimaryButton
           label="Start exploring"
-          // TODO: send the user to your real home screen once the account is saved.
-          onPress={() => router.replace('/(tabs)')}
+           onPress={() => router.replace('/(tabs)/home')}
           style={{ width: '100%' }}
         />
       </ScrollView>
