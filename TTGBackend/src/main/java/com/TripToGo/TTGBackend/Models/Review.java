@@ -40,7 +40,7 @@ public class Review {
     private int budgetRating;
 
     @Column (name = "stat", length = 4)
-    private String status = "PENDING"; // TODO: Implement Status Enum
+    private String status = "PENDING"; 
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "verified_by")
