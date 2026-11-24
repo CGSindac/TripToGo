@@ -5,7 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import com.TripToGo.TTGBackend.DTOs.UserDTOs.UserDTO;
+import com.TripToGo.TTGBackend.DTOs.UserDTOs.UserResponseDTO;
 import com.TripToGo.TTGBackend.DTOs.UserDTOs.UserRegisterDTO;
 import com.TripToGo.TTGBackend.Models.User;
 import com.TripToGo.TTGBackend.Repositories.UserRepository;
@@ -75,7 +75,7 @@ public class UserService {
     }
 
     @Transactional 
-    public User updateUser(UserDTO newUser)
+    public User updateUser(UserResponseDTO newUser)
     {
         User user = userRepository.findById(newUser.getUserID()).orElse(null);
 
