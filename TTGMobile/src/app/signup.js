@@ -217,22 +217,19 @@ export default function Signup() {
   };
 
   // ----- Password strength -----
-  const score = !password
-    ? 0
-    : Math.max(
-        1,
-        (password.length >= 8 ? 1 : 0) +
-          (/\d/.test(password) ? 1 : 0) +
-          (password.length >= 12 || (/[A-Z]/.test(password) && /[^A-Za-z0-9]/.test(password)) ? 1 : 0)
-      );
+  const longEnough = password.length >= 8;
+  const hasNumber = /\d/.test(password);
+  // 8+ characters with a number is a strong password
+  const score = !password ? 0 : longEnough && hasNumber ? 3 : longEnough || hasNumber ? 2 : 1;
   const strengthColor = [COLORS.track, COLORS.weak, COLORS.okay, COLORS.strong][score];
-  const strengthHint =
-    score === 0
-      ? 'Use 8 or more characters with a number.'
-      : score === 1
-        ? 'Weak. Use 8 or more characters with a number.'
-        : score === 2
-          ? 'Okay. Add more characters to make it stronger.'
+  const strengthHint = !password
+    ? 'Use 8 or more characters with a number.'
+    : !longEnough && !hasNumber
+      ? 'Add 8 or more characters and a number.'
+      : !longEnough
+        ? `Add ${8 - password.length} more character${8 - password.length === 1 ? '' : 's'}.`
+        : !hasNumber
+          ? 'Add a number.'
           : 'Strong password.';
 
   // ----- Step 1: details -----
