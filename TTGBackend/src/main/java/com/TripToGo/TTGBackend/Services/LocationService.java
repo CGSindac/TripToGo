@@ -26,7 +26,6 @@ import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewOptionsDTO.TagOption;
 import com.TripToGo.TTGBackend.Models.Location;
 import com.TripToGo.TTGBackend.Models.ReviewStatus;
 import com.TripToGo.TTGBackend.Models.Tag;
-import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewAccountRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewLocationRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewRepository.LocationRatings;
@@ -41,15 +40,13 @@ public class LocationService {
     private final ReviewLocationRepository locations;
     private final ReviewRepository reviews;
     private final ReviewTagRepository tags;
-    private final ReviewAccountRepository accounts;
     private final JdbcTemplate jdbc;
 
     public LocationService(ReviewLocationRepository locations, ReviewRepository reviews,
-            ReviewTagRepository tags, ReviewAccountRepository accounts, JdbcTemplate jdbc) {
+            ReviewTagRepository tags, JdbcTemplate jdbc) {
         this.locations = locations;
         this.reviews = reviews;
         this.tags = tags;
-        this.accounts = accounts;
         this.jdbc = jdbc;
     }
 
@@ -77,8 +74,7 @@ public class LocationService {
     }
 
     @Transactional
-    public LocationResponseDTO save(Integer locationId, LocationRequestDTO request, String username) {
-        requireAdmin(username);
+    public LocationResponseDTO save(Integer locationId, LocationRequestDTO request) {
         if (request.address() == null) {
             throw badRequest("An address is required.");
         }
@@ -114,8 +110,7 @@ public class LocationService {
     }
 
     @Transactional
-    public void delete(int locationId, String username) {
-        requireAdmin(username);
+    public void delete(int locationId) {
         Location location = lockLocation(locationId);
         if (reviews.existsByLocation_LocationId(locationId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This location has reviews and cannot be deleted.");
@@ -126,15 +121,6 @@ public class LocationService {
     void lockLocationIdentity(String key) {
         jdbc.queryForObject("select 1 from pg_advisory_xact_lock(?, ?)", Integer.class,
                 LOCATION_LOCK_NAMESPACE, key.hashCode());
-    }
-
-    private void requireAdmin(String username) {
-        if (username == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required.");
-        }
-        if (accounts.findAdmin(username).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required.");
-        }
     }
 
     private Location lockLocation(int locationId) {

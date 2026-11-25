@@ -2,7 +2,6 @@ package com.TripToGo.TTGBackend.Services;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
-import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -23,14 +22,12 @@ import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewOptionsDTO.LocationOption;
 import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewOptionsDTO.TagOption;
 import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewRequestDTO.Address;
 import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewRequestDTO.NewLocation;
-import com.TripToGo.TTGBackend.Models.Admin;
 import com.TripToGo.TTGBackend.Models.Location;
 import com.TripToGo.TTGBackend.Models.Review;
 import com.TripToGo.TTGBackend.Models.ReviewLocationProposal;
 import com.TripToGo.TTGBackend.Models.ReviewStatus;
 import com.TripToGo.TTGBackend.Models.Tag;
 import com.TripToGo.TTGBackend.Models.User;
-import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewAccountRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewLocationRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewTagRepository;
@@ -39,22 +36,19 @@ import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewTagRepository;
 @Transactional(readOnly = true)
 public class ReviewService {
     private static final int PAGE_SIZE = 20;
-    private static final int HOURLY_REVIEW_LIMIT = 5;
     private static final Pattern WHITESPACE = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
     private static final Sort RECENT_REVIEWS = Sort.by(Sort.Direction.DESC, "creationDate", "reviewID");
 
     private final ReviewRepository reviews;
     private final ReviewLocationRepository locations;
     private final ReviewTagRepository tags;
-    private final ReviewAccountRepository accounts;
     private final LocationService locationService;
 
     public ReviewService(ReviewRepository reviews, ReviewLocationRepository locations,
-            ReviewTagRepository tags, ReviewAccountRepository accounts, LocationService locationService) {
+            ReviewTagRepository tags, LocationService locationService) {
         this.reviews = reviews;
         this.locations = locations;
         this.tags = tags;
-        this.accounts = accounts;
         this.locationService = locationService;
     }
 
@@ -85,25 +79,19 @@ public class ReviewService {
                 .map(review -> toResponse(review, false));
     }
 
-    public ReviewResponseDTO getReview(int reviewId, String username) {
+    public ReviewResponseDTO getReview(int reviewId) {
         Review review = reviews.findById(reviewId).orElseThrow(ReviewService::reviewNotFound);
-        boolean owner = review.getUser() != null && review.getUser().getUsername().equals(username);
-        boolean canViewSubmission = owner || accounts.findAdmin(username).isPresent();
-        if (review.getStatus() != ReviewStatus.VERIFIED && !canViewSubmission) {
-            throw reviewNotFound();
-        }
-        return toResponse(review, canViewSubmission);
+        return toResponse(review, true);
     }
 
-    public Page<ReviewResponseDTO> pending(String username, int page) {
-        requireAdmin(username);
+    public Page<ReviewResponseDTO> pending(int page) {
         return reviews.findByStatusIn(List.of(ReviewStatus.PENDING_LOCATION, ReviewStatus.PENDING),
                 pageRequest(page, Sort.by("creationDate", "reviewID")))
                 .map(review -> toResponse(review, true));
     }
 
     @Transactional
-    public ReviewResponseDTO submit(String username, ReviewRequestDTO request) {
+    public ReviewResponseDTO submit(ReviewRequestDTO request) {
         boolean existingLocation = request.locationId() != null;
         if (existingLocation == (request.newLocation() != null)) {
             throw badRequest("Supply either locationId or newLocation.");
@@ -119,27 +107,13 @@ public class ReviewService {
         review.setWrittenReview(normalizeReviewText(request.writtenReview()));
         review.addTags(resolveTags(request.tagCodes()));
 
-        // Serialize per-account checks with submissions from the same account.
-        User user = accounts.findForUpdate(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account was not found."));
-        if (reviews.countByUser_UserIdAndCreationDateAfter(
-                user.getUserId(), LocalDateTime.now().minusHours(1)) >= HOURLY_REVIEW_LIMIT) {
-            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Hourly review limit reached.");
-        }
-        review.setUser(user);
-
         if (existingLocation) {
             Location location = lockLocation(locationId);
-            requireNoReviewAtLocation(user, location);
             review.setLocation(location);
-            verify(review, null);
+            verify(review);
         } else {
             if (matchingLocation(proposal).isPresent()) {
                 throw conflict("This location is already listed. Submit using its locationId.");
-            }
-            if (reviews.existsByUser_UserIdAndProposedLocation_KeyAndStatus(
-                    user.getUserId(), proposal.getKey(), ReviewStatus.PENDING_LOCATION)) {
-                throw conflict("You already have a pending review for this proposed location.");
             }
             review.setProposedLocation(proposal);
             review.setStatus(ReviewStatus.PENDING_LOCATION);
@@ -148,8 +122,7 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponseDTO approveLocation(int reviewId, String username) {
-        requireAdmin(username);
+    public ReviewResponseDTO approveLocation(int reviewId) {
         Review review = lockReview(reviewId);
         if (review.getLocation() != null && (review.getStatus() == ReviewStatus.PENDING
                 || review.getStatus() == ReviewStatus.VERIFIED) && review.getProposedLocation() != null) {
@@ -158,8 +131,6 @@ public class ReviewService {
         if (review.getStatus() != ReviewStatus.PENDING_LOCATION || review.getProposedLocation() == null) {
             throw conflict("This review is not awaiting location approval.");
         }
-        User author = accounts.findForUpdate(review.getUser().getUsername())
-                .orElseThrow(() -> conflict("The review author no longer exists."));
         ReviewLocationProposal proposal = review.getProposedLocation();
 
         // A proposal may be pending on several reviews. Serialize location creation by address and name.
@@ -167,15 +138,13 @@ public class ReviewService {
         Location location = matchingLocation(proposal)
                 .map(match -> lockLocation(match.getLocationID()))
                 .orElseGet(() -> createLocation(proposal));
-        requireNoReviewAtLocation(author, location);
         review.setLocation(location);
         review.setStatus(ReviewStatus.PENDING);
         return toResponse(review, true);
     }
 
     @Transactional
-    public ReviewResponseDTO approveReview(int reviewId, String username) {
-        Admin admin = requireAdmin(username);
+    public ReviewResponseDTO approveReview(int reviewId) {
         Review review = lockReview(reviewId);
         if (review.getStatus() == ReviewStatus.VERIFIED) {
             return toResponse(review, true);
@@ -184,27 +153,20 @@ public class ReviewService {
             throw conflict("The location must be approved before the review can be verified.");
         }
         review.setLocation(lockLocation(review.getLocation().getLocationID()));
-        verify(review, admin);
+        verify(review);
         return toResponse(review, true);
     }
 
     @Transactional
-    public ReviewResponseDTO rejectReview(int reviewId, String username) {
-        Admin admin = requireAdmin(username);
+    public ReviewResponseDTO rejectReview(int reviewId) {
         Review review = lockReview(reviewId);
         if (review.getStatus() == ReviewStatus.VERIFIED) {
             throw conflict("This review has already been verified.");
         }
         if (review.getStatus() != ReviewStatus.REJECTED) {
             review.setStatus(ReviewStatus.REJECTED);
-            review.setVerifiedBy(admin);
         }
         return toResponse(review, true);
-    }
-
-    private Admin requireAdmin(String username) {
-        return accounts.findAdmin(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required."));
     }
 
     private Review lockReview(int reviewId) {
@@ -214,13 +176,6 @@ public class ReviewService {
     private Location lockLocation(int locationId) {
         return locations.findForUpdate(locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location was not found."));
-    }
-
-    private void requireNoReviewAtLocation(User user, Location location) {
-        if (reviews.existsByUser_UserIdAndLocation_LocationIdAndStatusNot(
-                user.getUserId(), location.getLocationID(), ReviewStatus.REJECTED)) {
-            throw conflict("You already have a review for this location.");
-        }
     }
 
     private Optional<Location> matchingLocation(ReviewLocationProposal proposal) {
@@ -238,10 +193,9 @@ public class ReviewService {
         return locations.save(location);
     }
 
-    private static void verify(Review review, Admin verifier) {
+    private static void verify(Review review) {
         review.getLocation().getTags().addAll(review.getTags());
         review.setStatus(ReviewStatus.VERIFIED);
-        review.setVerifiedBy(verifier);
     }
 
     private Set<Tag> resolveTags(List<String> codes) {
