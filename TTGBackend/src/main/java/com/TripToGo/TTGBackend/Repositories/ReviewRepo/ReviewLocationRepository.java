@@ -1,5 +1,6 @@
 package com.TripToGo.TTGBackend.Repositories.ReviewRepo;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,7 +17,8 @@ import jakarta.persistence.LockModeType;
 public interface ReviewLocationRepository extends JpaRepository<Location, Integer> {
     Page<Location> findByLocNameContainingIgnoreCase(String name, Pageable page);
 
-    Page<Location> findDistinctByLocNameContainingIgnoreCaseAndTags_Code(String name, String code, Pageable page);
+    Page<Location> findDistinctByLocNameContainingIgnoreCaseAndTags_CodeIn(String name, Collection<String> codes,
+            Pageable page);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select l from Location l where l.locationId = :locationId")

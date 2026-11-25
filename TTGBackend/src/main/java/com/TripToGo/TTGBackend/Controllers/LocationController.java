@@ -42,8 +42,8 @@ public class LocationController {
 
     @GetMapping("/locations")
     public PagedModel<LocationResponseDTO> browse(@RequestParam(defaultValue = "") String search,
-            @RequestParam(defaultValue = "") String tag, @RequestParam(defaultValue = "0") int page) {
-        return new PagedModel<>(locations.browse(search, tag, page));
+            @RequestParam(required = false) List<String> tags, @RequestParam(defaultValue = "0") int page) {
+        return new PagedModel<>(locations.browse(search, tags, page));
     }
 
     @GetMapping({"/locations/{locationId}", "/locations/s/{locationId}"})
