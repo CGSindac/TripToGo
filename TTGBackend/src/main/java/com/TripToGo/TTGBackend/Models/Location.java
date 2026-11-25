@@ -4,6 +4,8 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
 
+import org.hibernate.annotations.BatchSize;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -52,6 +54,7 @@ public class Location {
     private float budgetRating = 0.0f;
 
     @ManyToMany 
+    @BatchSize(size = 20)
     @JoinTable (
         name = "location_tags",
         joinColumns = @JoinColumn (name = "location_id"),
