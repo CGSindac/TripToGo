@@ -1,6 +1,10 @@
-
-import { Stack, DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+
+export const unstable_settings = {
+  initialRouteName: 'splash',
+};
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -8,7 +12,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
+        <Stack.Screen name="splash" />
         <Stack.Screen name="welcome" />
         <Stack.Screen name="(tabs)" />
       </Stack>
