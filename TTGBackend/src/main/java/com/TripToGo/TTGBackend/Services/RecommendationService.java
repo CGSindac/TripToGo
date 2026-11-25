@@ -52,7 +52,7 @@ public class RecommendationService {
         List<LocationResponseDTO> recommendations = recommend(gatheredLocations, SUGGESTIONSIZE);
         
         // Log Trip
-        logTrip(username,  extractLocationIds(gatheredLocations));
+        logTrip(username,  extractLocationIds(recommendations));
 
         return recommendations;
     }
