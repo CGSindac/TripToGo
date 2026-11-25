@@ -139,7 +139,10 @@ function PlaceContent({ place }: { place: PlaceDetails }) {
       <PlaceReviews id={place.id} />
       <Pressable
         accessibilityRole="button"
-        onPress={() => router.navigate({ pathname: '/(tabs)/reviews', params: { placeName: place.name } })}
+        onPress={() => router.navigate({
+          pathname: '/(tabs)/reviews',
+          params: { placeName: place.name, placeAddress: place.address, reviewRequest: String(Date.now()) },
+        })}
         style={({ pressed }) => [styles.reviewButton, pressed && styles.pressed]}
       >
         <Text style={styles.reviewButtonText}>Write a Review</Text>
