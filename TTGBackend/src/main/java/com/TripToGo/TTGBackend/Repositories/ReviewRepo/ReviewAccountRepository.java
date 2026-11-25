@@ -12,6 +12,8 @@ import com.TripToGo.TTGBackend.Models.User;
 import jakarta.persistence.LockModeType;
 
 public interface ReviewAccountRepository extends Repository<User, Integer> {
+    Optional<User> findByUserId(Integer userId);
+
     Optional<User> findByUsername(String username);
 
     @Query("select a from Admin a where a.user.username = :username")

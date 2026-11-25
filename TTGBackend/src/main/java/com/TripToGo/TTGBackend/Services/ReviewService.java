@@ -28,6 +28,7 @@ import com.TripToGo.TTGBackend.Models.ReviewLocationProposal;
 import com.TripToGo.TTGBackend.Models.ReviewStatus;
 import com.TripToGo.TTGBackend.Models.Tag;
 import com.TripToGo.TTGBackend.Models.User;
+import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewAccountRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewLocationRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewTagRepository;
@@ -42,13 +43,15 @@ public class ReviewService {
     private final ReviewRepository reviews;
     private final ReviewLocationRepository locations;
     private final ReviewTagRepository tags;
+    private final ReviewAccountRepository accounts;
     private final LocationService locationService;
 
     public ReviewService(ReviewRepository reviews, ReviewLocationRepository locations,
-            ReviewTagRepository tags, LocationService locationService) {
+            ReviewTagRepository tags, ReviewAccountRepository accounts, LocationService locationService) {
         this.reviews = reviews;
         this.locations = locations;
         this.tags = tags;
+        this.accounts = accounts;
         this.locationService = locationService;
     }
 
@@ -92,6 +95,7 @@ public class ReviewService {
 
     @Transactional
     public ReviewResponseDTO submit(ReviewRequestDTO request) {
+        int userId = requireWholeNumber(request.userId(), 1, Integer.MAX_VALUE, "userId");
         boolean existingLocation = request.locationId() != null;
         if (existingLocation == (request.newLocation() != null)) {
             throw badRequest("Supply either locationId or newLocation.");
@@ -101,7 +105,11 @@ public class ReviewService {
                 : null;
         ReviewLocationProposal proposal = existingLocation ? null : normalizeProposal(request.newLocation());
 
+        User user = accounts.findByUserId(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User was not found."));
+
         Review review = new Review();
+        review.setUser(user);
         review.setEnjoymentRating(requireWholeNumber(request.enjoymentRating(), 1, 10, "enjoymentRating"));
         review.setBudgetRating(requireWholeNumber(request.budgetRating(), 1, 10, "budgetRating"));
         review.setWrittenReview(normalizeReviewText(request.writtenReview()));
@@ -279,7 +287,9 @@ public class ReviewService {
         }
         String locationName = location != null ? location.getLocName() : details == null ? null : details.name();
         User author = review.getUser();
-        return new ReviewResponseDTO(review.getReviewID(), location == null ? null : location.getLocationID(),
+        return new ReviewResponseDTO(review.getReviewID(),
+                author == null ? null : author.getUserId(),
+                location == null ? null : location.getLocationID(),
                 locationName, details, author == null ? null : author.getUsername(),
                 review.getTags().stream().map(tag -> tag.getCode().strip()).sorted().toList(),
                 review.getEnjoymentRating(), review.getBudgetRating(), review.getWrittenReview(),

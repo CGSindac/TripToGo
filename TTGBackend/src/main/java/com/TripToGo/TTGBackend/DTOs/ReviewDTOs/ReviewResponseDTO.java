@@ -8,6 +8,7 @@ import com.TripToGo.TTGBackend.Models.ReviewStatus;
 
 public record ReviewResponseDTO(
         Integer reviewId,
+        Integer userId,
         Integer locationId,
         String locationName,
         NewLocation proposedLocation,
