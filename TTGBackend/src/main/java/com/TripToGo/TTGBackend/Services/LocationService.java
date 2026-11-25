@@ -91,6 +91,7 @@ public class LocationService {
         if (description.length() > 2000 || description.indexOf(0) >= 0) {
             throw badRequest("Description must contain at most 2000 valid characters.");
         }
+        // Keep this key format in sync with ReviewLocationProposal so both paths acquire the same lock.
         String key = String.join("\n", name, address.country(), address.province(), address.city(), address.barangay());
         locationRepo.lockLocationIdentity(key.toLowerCase(Locale.ROOT));
         Location location = locationId == null ? new Location() : lockLocation(locationId);

@@ -163,7 +163,7 @@ public class ReviewService {
                 .orElseThrow(() -> conflict("The review author no longer exists."));
         ReviewLocationProposal proposal = review.getProposedLocation();
 
-        // A proposal may be pending on several reviews. Serialize location creation by address and name.
+        // Acquire the same lock as a direct location save before reusing or creating the proposed location.
         locationRepo.lockLocationIdentity(proposal.getKey());
         Location location = matchingLocation(proposal)
                 .map(match -> lockLocation(match.getLocationID()))
