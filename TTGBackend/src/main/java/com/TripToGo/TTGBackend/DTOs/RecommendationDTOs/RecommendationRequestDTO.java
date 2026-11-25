@@ -23,4 +23,5 @@ public class RecommendationRequestDTO {
         private String province;
         private String city;
     }
+    private String username;
 }

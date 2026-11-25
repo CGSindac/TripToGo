@@ -27,8 +27,8 @@ public class RecommendationController {
 
     // Create a Trip
     @PostMapping("")
-    public List<LocationResponseDTO> postMethodName(@RequestBody RecommendationRequestDTO entity, @RequestBody String username) {
-        return recommendations.generateRecommendation(entity, username);
+    public List<LocationResponseDTO> postMethodName(@RequestBody RecommendationRequestDTO entity) {
+        return recommendations.generateRecommendation(entity, entity.getUsername());
     }
     
 
