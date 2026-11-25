@@ -45,6 +45,9 @@ public class User {
     @OneToMany (mappedBy = "user")
     private List<Review> authoredReviews;
 
+    @OneToMany (mappedBy = "user")
+    private List<Trip> trips;
+
     
 
     // Getters
