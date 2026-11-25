@@ -1,6 +1,7 @@
 // src/components/FloatingTabBar.js
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 const TABS = {
   home: { label: 'Home', on: require('../../assets/images/tab-home-active.png'), off: require('../../assets/images/tab-home.png') },
@@ -9,8 +10,9 @@ const TABS = {
   reviews: { label: 'Reviews', on: require('../../assets/images/tab-reviews-active.png'), off: require('../../assets/images/tab-reviews.png') },
 };
 
-export default function FloatingTabBar({ state, navigation }) {
+export default function FloatingTabBar({ state }) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   return (
     <View style={[s.bar, { bottom: 20 + insets.bottom * 0.5 }]}>
       {state.routes.map((route, i) => {
@@ -18,8 +20,7 @@ export default function FloatingTabBar({ state, navigation }) {
         if (!tab) return null;
         const focused = state.index === i;
         const onPress = () => {
-          const e = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !e.defaultPrevented) navigation.navigate(route.name);
+          if (!focused) router.navigate(`/(tabs)/${route.name}`);
         };
         return (
           <Pressable key={route.key} onPress={onPress} style={s.item} accessibilityRole="button" accessibilityLabel={tab.label}>
