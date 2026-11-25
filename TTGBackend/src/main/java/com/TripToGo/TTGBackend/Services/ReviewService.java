@@ -30,6 +30,7 @@ import com.TripToGo.TTGBackend.Models.ReviewLocationProposal;
 import com.TripToGo.TTGBackend.Models.ReviewStatus;
 import com.TripToGo.TTGBackend.Models.Tag;
 import com.TripToGo.TTGBackend.Models.User;
+import com.TripToGo.TTGBackend.Repositories.LocationRepo.LocationRepo;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewAccountRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewLocationRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewRepository;
@@ -47,15 +48,15 @@ public class ReviewService {
     private final ReviewLocationRepository locations;
     private final ReviewTagRepository tags;
     private final ReviewAccountRepository accounts;
-    private final LocationService locationService;
+    private final LocationRepo locationRepo;
 
     public ReviewService(ReviewRepository reviews, ReviewLocationRepository locations,
-            ReviewTagRepository tags, ReviewAccountRepository accounts, LocationService locationService) {
+            ReviewTagRepository tags, ReviewAccountRepository accounts, LocationRepo locationRepo) {
         this.reviews = reviews;
         this.locations = locations;
         this.tags = tags;
         this.accounts = accounts;
-        this.locationService = locationService;
+        this.locationRepo = locationRepo;
     }
 
     public Page<LocationOption> locationOptions(String search, int page) {
@@ -163,7 +164,7 @@ public class ReviewService {
         ReviewLocationProposal proposal = review.getProposedLocation();
 
         // A proposal may be pending on several reviews. Serialize location creation by address and name.
-        locationService.lockLocationIdentity(proposal.getKey());
+        locationRepo.lockLocationIdentity(proposal.getKey());
         Location location = matchingLocation(proposal)
                 .map(match -> lockLocation(match.getLocationID()))
                 .orElseGet(() -> createLocation(proposal));

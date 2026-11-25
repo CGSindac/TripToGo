@@ -14,7 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -26,6 +25,7 @@ import com.TripToGo.TTGBackend.DTOs.ReviewDTOs.ReviewOptionsDTO.TagOption;
 import com.TripToGo.TTGBackend.Models.Location;
 import com.TripToGo.TTGBackend.Models.ReviewStatus;
 import com.TripToGo.TTGBackend.Models.Tag;
+import com.TripToGo.TTGBackend.Repositories.LocationRepo.LocationRepo;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewAccountRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewLocationRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewRepository;
@@ -36,21 +36,20 @@ import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewTagRepository;
 @Transactional(readOnly = true)
 public class LocationService {
     private static final int PAGE_SIZE = 20;
-    private static final int LOCATION_LOCK_NAMESPACE = "review location".hashCode();
 
     private final ReviewLocationRepository locations;
     private final ReviewRepository reviews;
     private final ReviewTagRepository tags;
     private final ReviewAccountRepository accounts;
-    private final JdbcTemplate jdbc;
+    private final LocationRepo locationRepo;
 
     public LocationService(ReviewLocationRepository locations, ReviewRepository reviews,
-            ReviewTagRepository tags, ReviewAccountRepository accounts, JdbcTemplate jdbc) {
+            ReviewTagRepository tags, ReviewAccountRepository accounts, LocationRepo locationRepo) {
         this.locations = locations;
         this.reviews = reviews;
         this.tags = tags;
         this.accounts = accounts;
-        this.jdbc = jdbc;
+        this.locationRepo = locationRepo;
     }
 
     public Page<LocationResponseDTO> browse(String search, String tag, int page) {
@@ -93,7 +92,7 @@ public class LocationService {
             throw badRequest("Description must contain at most 2000 valid characters.");
         }
         String key = String.join("\n", name, address.country(), address.province(), address.city(), address.barangay());
-        lockLocationIdentity(key.toLowerCase(Locale.ROOT));
+        locationRepo.lockLocationIdentity(key.toLowerCase(Locale.ROOT));
         Location location = locationId == null ? new Location() : lockLocation(locationId);
         boolean duplicate = locations.findMatchingLocations(
                 name, address.country(), address.province(), address.city(), address.barangay()).stream()
@@ -121,11 +120,6 @@ public class LocationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This location has reviews and cannot be deleted.");
         }
         locations.delete(location);
-    }
-
-    void lockLocationIdentity(String key) {
-        jdbc.queryForObject("select 1 from pg_advisory_xact_lock(?, ?)", Integer.class,
-                LOCATION_LOCK_NAMESPACE, key.hashCode());
     }
 
     private void requireAdmin(String username) {
