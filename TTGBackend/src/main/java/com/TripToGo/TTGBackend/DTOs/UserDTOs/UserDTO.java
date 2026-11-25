@@ -3,6 +3,7 @@ package com.TripToGo.TTGBackend.DTOs.UserDTOs;
 
 import java.time.LocalDateTime;
 
+/** Account profile returned by the user management API. */
 public class UserDTO {
 
     private Integer userId;
@@ -11,8 +12,15 @@ public class UserDTO {
     private String role;
     private LocalDateTime creationDate;
 
-    // Constructor
     public UserDTO() {
+    }
+
+    public UserDTO(Integer userId, String username, String email, String role, LocalDateTime creationDate) {
+        this.userId = userId;
+        this.username = username;
+        this.email = email;
+        this.role = role;
+        this.creationDate = creationDate;
     }
 
     // Getters
