@@ -2,7 +2,7 @@ package com.TripToGo.TTGBackend.Controllers;
 
 import org.springframework.web.bind.annotation.RestController;
 
-import com.TripToGo.TTGBackend.DTOs.UserDTOs.UserDTO;
+import com.TripToGo.TTGBackend.DTOs.UserDTOs.UserResponseDTO;
 import com.TripToGo.TTGBackend.DTOs.UserDTOs.UserRegisterDTO;
 import com.TripToGo.TTGBackend.Models.User;
 import com.TripToGo.TTGBackend.Services.UserService;
@@ -98,7 +98,7 @@ public class Usercontroller {
     // Update user
     @PutMapping ()
     public User updateUser(
-        @RequestBody UserDTO userDTO
+        @RequestBody UserResponseDTO userDTO
     )
     {   
         return userService.updateUser(null);
