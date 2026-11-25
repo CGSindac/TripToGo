@@ -27,16 +27,18 @@ const COLORS = {
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_PATTERN = /^[A-Za-z0-9_.]{3,20}$/;
 
 export default function Login() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const passwordRef = useRef(null);
 
-  const [email, setEmail] = useState('');
+  const [method, setMethod] = useState('email'); // 'email' | 'username'
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [focused, setFocused] = useState(null); // 'email' | 'password' | null
+  const [focused, setFocused] = useState(null); // 'identifier' | 'password' | null
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -47,7 +49,9 @@ export default function Login() {
 
   const validate = () => {
     const next = {};
-    if (!EMAIL_PATTERN.test(email.trim())) next.email = 'Enter a valid email address.';
+    const value = identifier.trim();
+    if (method === 'email' && !EMAIL_PATTERN.test(value)) next.identifier = 'Enter a valid email address.';
+    if (method === 'username' && !USERNAME_PATTERN.test(value)) next.identifier = 'Enter your username.';
     if (!password) next.password = 'Enter your password.';
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -57,7 +61,15 @@ export default function Login() {
     if (loading || !validate()) return;
     setLoading(true);
     try {
-      // TODO: call backend
+      // TODO: call backend here, for example:
+      // const res = await fetch(`${API_URL}/auth/login`, {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   // send ONE field, `login`, which is either the email or the username:
+      //   body: JSON.stringify({ login: identifier.trim(), password }),
+      // });
+      // if (!res.ok) throw new Error('Wrong email/username or password.');
+      // then save the token and router.replace('/your-home-screen');
       Alert.alert('Logged in', 'The form works. Connect it to your backend next.');
     } catch (e) {
       setErrors({ form: e?.message || 'Something went wrong. Please try again.' });
@@ -80,7 +92,7 @@ export default function Login() {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
       <View style={styles.screen}>
-        {/* Decorative shapes */}
+        {/* Decorative shapes: the sun and a star, top right */}
         <Image
           source={require('../../assets/images/shape-sun.png')}
           style={[styles.sun, { top: insets.top + 74 }]}
@@ -126,29 +138,53 @@ export default function Login() {
 
           {/* Form */}
           <View style={styles.form}>
+            {/* Choose how to log in */}
+            <View style={styles.segment} accessibilityRole="tablist">
+              {['email', 'username'].map((m) => {
+                const on = method === m;
+                return (
+                  <Pressable
+                    key={m}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: on }}
+                    onPress={() => {
+                      setMethod(m);
+                      setIdentifier('');
+                      setErrors((e) => ({ ...e, identifier: undefined, form: undefined }));
+                    }}
+                    style={[styles.segmentItem, on && styles.segmentItemOn]}
+                  >
+                    <Text style={[styles.segmentText, on && styles.segmentTextOn]}>
+                      {m === 'email' ? 'Email' : 'Username'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
             <View style={styles.field}>
-              <Text style={styles.label}>Email</Text>
+              <Text style={styles.label}>{method === 'email' ? 'Email' : 'Username'}</Text>
               <TextInput
-                style={fieldStyle('email')}
-                value={email}
+                style={fieldStyle('identifier')}
+                value={identifier}
                 onChangeText={(t) => {
-                  setEmail(t);
-                  if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+                  setIdentifier(t);
+                  if (errors.identifier) setErrors((e) => ({ ...e, identifier: undefined }));
                 }}
-                placeholder="you@example.com"
+                placeholder={method === 'email' ? 'you@example.com' : 'Your username'}
                 placeholderTextColor={COLORS.muted}
-                keyboardType="email-address"
+                keyboardType={method === 'email' ? 'email-address' : 'default'}
                 autoCapitalize="none"
                 autoCorrect={false}
-                autoComplete="email"
-                textContentType="emailAddress"
+                autoComplete={method === 'email' ? 'email' : 'username'}
+                textContentType={method === 'email' ? 'emailAddress' : 'username'}
                 returnKeyType="next"
-                onFocus={() => setFocused('email')}
+                onFocus={() => setFocused('identifier')}
                 onBlur={() => setFocused(null)}
                 onSubmitEditing={() => passwordRef.current?.focus()}
-                accessibilityLabel="Email"
+                accessibilityLabel={method === 'email' ? 'Email' : 'Username'}
               />
-              {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              {!!errors.identifier && <Text style={styles.errorText}>{errors.identifier}</Text>}
             </View>
 
             <View style={styles.field}>
@@ -268,7 +304,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
 
-  // Decorations 
+  // Decorations (positions match the design on a 390 px wide screen)
   sun: { position: 'absolute', right: -12, width: 84, height: 84 },
   star: { position: 'absolute', right: 72, width: 22, height: 22, tintColor: COLORS.pink },
 
@@ -311,6 +347,22 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: COLORS.muted,
   },
+
+  // Email / Username switch
+  segment: {
+    flexDirection: 'row',
+    height: 48,
+    padding: 4,
+    borderRadius: 24,
+    backgroundColor: '#F1EDFF',
+  },
+  segmentItem: { flex: 1, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  segmentItemOn: {
+    backgroundColor: '#FFFFFF',
+    ...Platform.select({ android: { elevation: 2 }, ios: { shadowColor: COLORS.primary, shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } } }),
+  },
+  segmentText: { fontSize: 15, fontWeight: '700', color: COLORS.muted },
+  segmentTextOn: { color: COLORS.primary },
 
   // Form
   form: { marginTop: 28, gap: 16 },

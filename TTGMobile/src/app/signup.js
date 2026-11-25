@@ -35,10 +35,11 @@ const COLORS = {
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_PATTERN = /^[A-Za-z0-9_.]{3,20}$/; // no spaces, no @
 const CODE_LENGTH = 6;
 const RESEND_SECONDS = 30;
 
-// Images
+// Images. The shape-*.png files are the ones your splash already uses; the rest are new.
 const IMG = {
   sun: require('../../assets/images/shape-sun.png'),
   sparkle: require('../../assets/images/shape-sparkle.png'),
@@ -68,7 +69,7 @@ const INTERESTS = [
   { id: 'relaxing', label: 'Relaxing', icon: IMG.moon, tint: '#D9F2F5' },
 ];
 
-// Decorative shapes 
+// Decorative shapes are placed with x measured on the 342 px wide content area of the design.
 const AREA_W = 342;
 const at = (x) => `${(x / AREA_W) * 100}%`;
 
@@ -102,9 +103,9 @@ function Dot({ x, y, size, color }) {
   );
 }
 
-// -----------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Header with the back button and the 3-step progress bar
-// -----------------------------------------------------------
+// ---------------------------------------------------------------------------
 function Header({ stepNumber, onBack }) {
   return (
     <View style={styles.headerRow}>
@@ -144,9 +145,9 @@ function PrimaryButton({ label, onPress, loading, style }) {
   );
 }
 
-// -----------------------
+// ---------------------------------------------------------------------------
 // Screen
-// -----------------------
+// ---------------------------------------------------------------------------
 export default function Signup() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -158,7 +159,7 @@ export default function Signup() {
   const [errors, setErrors] = useState({});
 
   // Step 1
-  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -238,7 +239,7 @@ export default function Signup() {
   const submitDetails = async () => {
     if (loading) return;
     const next = {};
-    if (!name.trim()) next.name = 'Enter your name.';
+    if (!USERNAME_PATTERN.test(username.trim())) next.username = 'Use 3-20 letters, numbers, dots or underscores.';
     if (!EMAIL_PATTERN.test(email.trim())) next.email = 'Enter a valid email address.';
     if (password.length < 8 || !/\d/.test(password)) next.password = 'Use 8 or more characters with a number.';
     if (!agree) next.agree = 'Please accept the Terms of Use and Privacy Policy.';
@@ -247,12 +248,14 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      // TODO: create the account on backend, which should email a 6-digit code, for example:
+      // TODO: create the account on your backend, which should email a 6-digit code, for example:
       // const res = await fetch(`${API_URL}/auth/register`, {
       //   method: 'POST',
       //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
+      //   body: JSON.stringify({ username: username.trim(), email: email.trim(), password }),
+      //   //  backend should answer 409 if the username or email is already taken
       // });
+      // if (res.status === 409) throw new Error('That username or email is already taken.');
       // if (!res.ok) throw new Error('We could not create your account.');
       setCode(Array(CODE_LENGTH).fill(''));
       setNotice('');
@@ -279,7 +282,7 @@ export default function Signup() {
       if (index < CODE_LENGTH - 1) codeRefs.current[index + 1]?.focus();
       return;
     }
-
+    // A whole code was pasted or auto-filled from an SMS or email
     setCode((c) => {
       const next = [...c];
       digits
@@ -327,7 +330,7 @@ export default function Signup() {
 
   const resendCode = async () => {
     if (cooldown > 0) return;
-    // TODO: ask your backend to send a new code.
+    // TODO: ask backend to send a new code.
     setNotice('We sent you a new code.');
     setCooldown(RESEND_SECONDS);
   };
@@ -337,7 +340,7 @@ export default function Signup() {
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const finishInterests = () => {
-    // TODO: save `picked` to the user's profile on your backend.
+    // TODO: save `picked` to the user's profile on backend.
     setStep('done');
   };
 
@@ -358,9 +361,9 @@ export default function Signup() {
     errors[key] && styles.inputError,
   ];
 
-  // ===============================
+  // =========================================================================
   // STEP 1: Create your account
-  // ===============================
+  // =========================================================================
   const renderDetails = () => (
     <>
       <Image
@@ -392,26 +395,28 @@ export default function Signup() {
 
         <View style={styles.form}>
           <View style={styles.field}>
-            <Text style={styles.label}>Full name</Text>
+            <Text style={styles.label}>Username</Text>
             <TextInput
-              style={fieldStyle('name')}
-              value={name}
+              style={fieldStyle('username')}
+              value={username}
               onChangeText={(t) => {
-                setName(t);
-                clearError('name');
+                setUsername(t.replace(/\s/g, ''));
+                clearError('username');
               }}
-              placeholder="Your name"
+              placeholder="Choose a username"
               placeholderTextColor={COLORS.muted}
-              autoCapitalize="words"
-              autoComplete="name"
-              textContentType="name"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username-new"
+              textContentType="username"
+              maxLength={20}
               returnKeyType="next"
-              onFocus={() => setFocused('name')}
+              onFocus={() => setFocused('username')}
               onBlur={() => setFocused(null)}
               onSubmitEditing={() => emailRef.current?.focus()}
-              accessibilityLabel="Full name"
+              accessibilityLabel="Username"
             />
-            {!!errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+            {!!errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
           </View>
 
           <View style={styles.field}>
@@ -526,9 +531,9 @@ export default function Signup() {
     </>
   );
 
-  // ================================
+  // =========================================================================
   // STEP 2: Verify your email
-  // ================================
+  // =========================================================================
   const renderVerify = () => (
     <ScrollView
       contentContainerStyle={contentStyle}
@@ -619,9 +624,9 @@ export default function Signup() {
     </ScrollView>
   );
 
-  // ================================
+  // =========================================================================
   // STEP 3: Travel style
-  // ================================
+  // =========================================================================
   const renderInterests = () => (
     <ScrollView contentContainerStyle={contentStyle} showsVerticalScrollIndicator={false}>
       <Header stepNumber={3} onBack={() => setStep('verify')} />
@@ -669,9 +674,9 @@ export default function Signup() {
     </ScrollView>
   );
 
-  // ==================================
-  // COMPLETED SCREEN: You are all set
-  // ==================================
+  // =========================================================================
+  // DONE: You are all set
+  // =========================================================================
   const renderDone = () => {
     const stage = isShort ? 320 : 420;
     return (
@@ -707,7 +712,8 @@ export default function Signup() {
 
         <PrimaryButton
           label="Start exploring"
-           onPress={() => router.replace('/(tabs)/home')}
+          // TODO: send the user to real home screen once the account is saved.
+          onPress={() => router.replace('/(tabs)')}
           style={{ width: '100%' }}
         />
       </ScrollView>
