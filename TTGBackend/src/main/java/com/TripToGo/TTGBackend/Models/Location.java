@@ -66,6 +66,9 @@ public class Location {
     @OneToMany (mappedBy = "location", cascade = CascadeType.ALL)
     private List<Review> reviews;
 
+    @ManyToMany (mappedBy = "locations")
+    private Set<Trip> trips = new HashSet<>();
+
     // Getters
     public Integer getLocationID() { return locationId; }
     public String getLocName() { return locName; }
