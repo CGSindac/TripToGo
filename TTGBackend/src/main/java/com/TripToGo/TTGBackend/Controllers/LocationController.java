@@ -1,6 +1,5 @@
 package com.TripToGo.TTGBackend.Controllers;
 
-import java.security.Principal;
 import java.util.List;
 
 import org.springframework.data.web.PagedModel;
@@ -65,28 +64,23 @@ public class LocationController {
 
     @PostMapping(path = "/locations", consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public LocationResponseDTO create(@RequestBody LocationRequestDTO request, Principal principal) {
-        return locations.save(null, request, username(principal));
+    public LocationResponseDTO create(@RequestBody LocationRequestDTO request) {
+        return locations.save(null, request);
     }
 
     @PutMapping(path = "/locations/{locationId}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public LocationResponseDTO update(@PathVariable int locationId, @RequestBody LocationRequestDTO request,
-            Principal principal) {
-        return locations.save(locationId, request, username(principal));
+    public LocationResponseDTO update(@PathVariable int locationId, @RequestBody LocationRequestDTO request) {
+        return locations.save(locationId, request);
     }
 
     @DeleteMapping("/locations/{locationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable int locationId, Principal principal) {
-        locations.delete(locationId, username(principal));
+    public void delete(@PathVariable int locationId) {
+        locations.delete(locationId);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ProblemDetail handleLocationError(ResponseStatusException exception) {
         return exception.getBody();
-    }
-
-    private static String username(Principal principal) {
-        return principal == null ? null : principal.getName();
     }
 }

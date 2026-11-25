@@ -1,6 +1,5 @@
 package com.TripToGo.TTGBackend.Controllers;
 
-import java.security.Principal;
 import java.util.List;
 
 import org.springframework.data.web.PagedModel;
@@ -59,34 +58,34 @@ public class ReviewController {
     }
 
     @GetMapping("/{reviewId}")
-    public ReviewResponseDTO getReview(@PathVariable int reviewId, Principal principal) {
-        return reviews.getReview(reviewId, principal.getName());
+    public ReviewResponseDTO getReview(@PathVariable int reviewId) {
+        return reviews.getReview(reviewId);
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public ReviewResponseDTO submit(@RequestBody ReviewRequestDTO request, Principal principal) {
-        return reviews.submit(principal.getName(), request);
+    public ReviewResponseDTO submit(@RequestBody ReviewRequestDTO request) {
+        return reviews.submit(request);
     }
 
     @GetMapping("/moderation/pending")
-    public PagedModel<ReviewResponseDTO> pending(@RequestParam(defaultValue = "0") int page, Principal principal) {
-        return new PagedModel<>(reviews.pending(principal.getName(), page));
+    public PagedModel<ReviewResponseDTO> pending(@RequestParam(defaultValue = "0") int page) {
+        return new PagedModel<>(reviews.pending(page));
     }
 
     @PutMapping("/moderation/{reviewId}/location")
-    public ReviewResponseDTO approveLocation(@PathVariable int reviewId, Principal principal) {
-        return reviews.approveLocation(reviewId, principal.getName());
+    public ReviewResponseDTO approveLocation(@PathVariable int reviewId) {
+        return reviews.approveLocation(reviewId);
     }
 
     @PutMapping("/moderation/{reviewId}/approval")
-    public ReviewResponseDTO approveReview(@PathVariable int reviewId, Principal principal) {
-        return reviews.approveReview(reviewId, principal.getName());
+    public ReviewResponseDTO approveReview(@PathVariable int reviewId) {
+        return reviews.approveReview(reviewId);
     }
 
     @PutMapping("/moderation/{reviewId}/rejection")
-    public ReviewResponseDTO rejectReview(@PathVariable int reviewId, Principal principal) {
-        return reviews.rejectReview(reviewId, principal.getName());
+    public ReviewResponseDTO rejectReview(@PathVariable int reviewId) {
+        return reviews.rejectReview(reviewId);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
