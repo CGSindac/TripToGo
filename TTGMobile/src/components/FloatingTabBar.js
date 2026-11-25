@@ -13,17 +13,19 @@ const TABS = {
 export default function FloatingTabBar({ state }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const activeRoute = state.routes[state.index].name;
+  const activeTab = activeRoute === 'places/[id]' ? 'explore' : activeRoute;
   return (
     <View style={[s.bar, { bottom: 20 + insets.bottom * 0.5 }]}>
-      {state.routes.map((route, i) => {
+      {state.routes.map((route) => {
         const tab = TABS[route.name];
         if (!tab) return null;
-        const focused = state.index === i;
+        const focused = activeTab === route.name;
         const onPress = () => {
-          if (!focused) router.navigate(`/(tabs)/${route.name}`);
+          if (activeRoute !== route.name) router.navigate(`/(tabs)/${route.name}`);
         };
         return (
-          <Pressable key={route.key} onPress={onPress} style={s.item} accessibilityRole="button" accessibilityLabel={tab.label}>
+          <Pressable key={route.key} onPress={onPress} style={s.item} accessibilityRole="button" accessibilityLabel={tab.label} accessibilityState={{ selected: focused }}>
             <View style={[s.pill, focused && s.pillOn]}>
               <Image source={focused ? tab.on : tab.off} style={s.icon} />
               {focused && <Text style={s.label}>{tab.label}</Text>}

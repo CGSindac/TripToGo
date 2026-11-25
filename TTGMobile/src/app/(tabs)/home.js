@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { placeDetailsHref, sampleRecommendedPlace } from '../../data/places';
 
 // ---------- CONFIG ----------
 const API_URL = 'http://10.0.2.2:8080'; // Android emulator -> your Mac
@@ -40,11 +41,7 @@ const C = {
 // }
 const SAMPLE = {
   user: { name: 'Kristine', avatarUrl: null },
-  recommended: {
-    id: 'p1', name: 'El Nido, Palawan', imageUrl: null, rating: 4.8,
-    estimatedCost: 12500, currency: 'PHP',
-    description: 'Limestone cliffs, hidden lagoons and island hopping.',
-  },
+  recommended: sampleRecommendedPlace,
   currentTrip: {
     id: 't1', name: 'Baguio Weekend', imageUrl: null,
     startDate: '2026-12-12', endDate: '2026-12-16',
@@ -286,7 +283,7 @@ export default function Home() {
               place={data.recommended}
               saved={saved}
               onToggleSave={toggleSave}
-              onPress={() => router.push({ pathname: '/explore', params: { id: data.recommended.id } })}
+              onPress={() => router.navigate(placeDetailsHref(data.recommended.locationId ?? data.recommended.id, 'home'))}
             />
           ) : <EmptyCard title="No recommendations yet" text="Tell us your travel style and we will suggest places." />}
       </View>

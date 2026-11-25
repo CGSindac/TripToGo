@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { placeDetailsHref, sampleBrowsePlaces } from '../../data/places';
 
 // ---------- CONFIG ----------
 const API_URL = 'http://10.0.2.2:8080'; // Android emulator 
@@ -54,12 +55,7 @@ const RATINGS = [{ v: 0, label: 'Any rating' }, { v: 4, label: '4.0 and up' }, {
 // }
 const SAMPLE = {
   location: { city: 'Lipa City, Batangas' },
-  places: [
-    { id: 'a1', name: 'Lipa Cathedral Plaza', category: 'Attractions', imageUrl: null, rating: 4.7, estimatedCost: 0, currency: 'PHP', saved: false },
-    { id: 'a2', name: 'Barako Coffee House', category: 'Restaurants', imageUrl: null, rating: 4.6, estimatedCost: 250, currency: 'PHP', saved: true },
-    { id: 'a3', name: 'Lipa Public Market', category: 'Shops', imageUrl: null, rating: 4.4, estimatedCost: 150, currency: 'PHP', saved: false },
-    { id: 'a4', name: 'Sampaguita Garden Park', category: 'Attractions', imageUrl: null, rating: 4.5, estimatedCost: 100, currency: 'PHP', saved: false },
-  ],
+  places: sampleBrowsePlaces,
 };
 
 async function fetchPlaces({ category, q }) {
@@ -309,7 +305,7 @@ export default function Browse() {
                 place={p}
                 saved={(savedIds || []).includes(p.id)}
                 onToggleSave={() => toggleSave(p.id)}
-                onPress={() => router.push({ pathname: '/explore', params: { id: p.id } })}
+                onPress={() => router.navigate(placeDetailsHref(p.locationId ?? p.id, 'browse'))}
               />
             ))
           ) : !error ? (
