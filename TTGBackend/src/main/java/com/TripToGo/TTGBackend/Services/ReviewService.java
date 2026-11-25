@@ -13,7 +13,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,17 +30,16 @@ import com.TripToGo.TTGBackend.Models.ReviewLocationProposal;
 import com.TripToGo.TTGBackend.Models.ReviewStatus;
 import com.TripToGo.TTGBackend.Models.Tag;
 import com.TripToGo.TTGBackend.Models.User;
-import com.TripToGo.TTGBackend.Repositories.ReviewAccountRepository;
-import com.TripToGo.TTGBackend.Repositories.ReviewLocationRepository;
-import com.TripToGo.TTGBackend.Repositories.ReviewRepository;
-import com.TripToGo.TTGBackend.Repositories.ReviewTagRepository;
+import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewAccountRepository;
+import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewLocationRepository;
+import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewRepository;
+import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewTagRepository;
 
 @Service
 @Transactional(readOnly = true)
 public class ReviewService {
     private static final int PAGE_SIZE = 20;
     private static final int HOURLY_REVIEW_LIMIT = 5;
-    private static final int PROPOSED_LOCATION_LOCK_NAMESPACE = "review location".hashCode();
     private static final Pattern WHITESPACE = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
     private static final Sort RECENT_REVIEWS = Sort.by(Sort.Direction.DESC, "creationDate", "reviewID");
 
@@ -49,15 +47,15 @@ public class ReviewService {
     private final ReviewLocationRepository locations;
     private final ReviewTagRepository tags;
     private final ReviewAccountRepository accounts;
-    private final JdbcTemplate jdbc;
+    private final LocationService locationService;
 
     public ReviewService(ReviewRepository reviews, ReviewLocationRepository locations,
-            ReviewTagRepository tags, ReviewAccountRepository accounts, JdbcTemplate jdbc) {
+            ReviewTagRepository tags, ReviewAccountRepository accounts, LocationService locationService) {
         this.reviews = reviews;
         this.locations = locations;
         this.tags = tags;
         this.accounts = accounts;
-        this.jdbc = jdbc;
+        this.locationService = locationService;
     }
 
     public Page<LocationOption> locationOptions(String search, int page) {
@@ -165,8 +163,7 @@ public class ReviewService {
         ReviewLocationProposal proposal = review.getProposedLocation();
 
         // A proposal may be pending on several reviews. Serialize location creation by address and name.
-        jdbc.queryForObject("select 1 from pg_advisory_xact_lock(?, ?)", Integer.class,
-                PROPOSED_LOCATION_LOCK_NAMESPACE, proposal.getKey().hashCode());
+        locationService.lockLocationIdentity(proposal.getKey());
         Location location = matchingLocation(proposal)
                 .map(match -> lockLocation(match.getLocationID()))
                 .orElseGet(() -> createLocation(proposal));

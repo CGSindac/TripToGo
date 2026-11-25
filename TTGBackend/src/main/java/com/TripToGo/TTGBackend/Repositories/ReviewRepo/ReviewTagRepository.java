@@ -1,4 +1,4 @@
-package com.TripToGo.TTGBackend.Repositories;
+package com.TripToGo.TTGBackend.Repositories.ReviewRepo;
 
 import java.util.List;
 
