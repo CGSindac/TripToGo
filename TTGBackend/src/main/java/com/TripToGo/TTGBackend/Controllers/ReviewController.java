@@ -74,18 +74,18 @@ public class ReviewController {
     }
 
     @PutMapping("/moderation/{reviewId}/location")
-    public ReviewResponseDTO approveLocation(@PathVariable int reviewId) {
-        return reviews.approveLocation(reviewId);
+    public ReviewResponseDTO approveLocation(@PathVariable int reviewId, @RequestBody String admin) {
+        return reviews.approveLocation(reviewId, admin);
     }
 
     @PutMapping("/moderation/{reviewId}/approval")
-    public ReviewResponseDTO approveReview(@PathVariable int reviewId) {
-        return reviews.approveReview(reviewId);
+    public ReviewResponseDTO approveReview(@PathVariable int reviewId, @RequestBody String admin) {
+        return reviews.approveReview(reviewId, admin);
     }
 
     @PutMapping("/moderation/{reviewId}/rejection")
-    public ReviewResponseDTO rejectReview(@PathVariable int reviewId) {
-        return reviews.rejectReview(reviewId);
+    public ReviewResponseDTO rejectReview(@PathVariable int reviewId, @RequestBody String admin) {
+        return reviews.rejectReview(reviewId, admin);
     }
 
     @ExceptionHandler(ResponseStatusException.class)

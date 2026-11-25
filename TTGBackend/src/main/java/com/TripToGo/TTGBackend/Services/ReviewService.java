@@ -28,6 +28,7 @@ import com.TripToGo.TTGBackend.Models.ReviewLocationProposal;
 import com.TripToGo.TTGBackend.Models.ReviewStatus;
 import com.TripToGo.TTGBackend.Models.Tag;
 import com.TripToGo.TTGBackend.Models.User;
+import com.TripToGo.TTGBackend.Models.Admin;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewAccountRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewLocationRepository;
 import com.TripToGo.TTGBackend.Repositories.ReviewRepo.ReviewRepository;
@@ -118,7 +119,7 @@ public class ReviewService {
         if (existingLocation) {
             Location location = lockLocation(locationId);
             review.setLocation(location);
-            verify(review);
+            verify(review, null);
         } else {
             if (matchingLocation(proposal).isPresent()) {
                 throw conflict("This location is already listed. Submit using its locationId.");
@@ -130,8 +131,9 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponseDTO approveLocation(int reviewId) {
+    public ReviewResponseDTO approveLocation(int reviewId, String adminUsername) {
         Review review = lockReview(reviewId);
+        lockAdmin(adminUsername);
         if (review.getLocation() != null && (review.getStatus() == ReviewStatus.PENDING
                 || review.getStatus() == ReviewStatus.VERIFIED) && review.getProposedLocation() != null) {
             return toResponse(review, true);
@@ -152,8 +154,9 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponseDTO approveReview(int reviewId) {
+    public ReviewResponseDTO approveReview(int reviewId, String admin) {
         Review review = lockReview(reviewId);
+        Admin adminUsername = lockAdmin(admin);
         if (review.getStatus() == ReviewStatus.VERIFIED) {
             return toResponse(review, true);
         }
@@ -161,17 +164,19 @@ public class ReviewService {
             throw conflict("The location must be approved before the review can be verified.");
         }
         review.setLocation(lockLocation(review.getLocation().getLocationID()));
-        verify(review);
+        verify(review, adminUsername);
         return toResponse(review, true);
     }
 
     @Transactional
-    public ReviewResponseDTO rejectReview(int reviewId) {
+    public ReviewResponseDTO rejectReview(int reviewId, String adminUsername) {
         Review review = lockReview(reviewId);
+        Admin admin = lockAdmin(adminUsername);
         if (review.getStatus() == ReviewStatus.VERIFIED) {
             throw conflict("This review has already been verified.");
         }
         if (review.getStatus() != ReviewStatus.REJECTED) {
+            review.setVerifiedBy(admin);
             review.setStatus(ReviewStatus.REJECTED);
         }
         return toResponse(review, true);
@@ -184,6 +189,12 @@ public class ReviewService {
     private Location lockLocation(int locationId) {
         return locations.findForUpdate(locationId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location was not found."));
+    }
+
+    private Admin lockAdmin(String username)
+    {
+        return accounts.findAdmin(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Must be an Admin to approve."));
     }
 
     private Optional<Location> matchingLocation(ReviewLocationProposal proposal) {
@@ -201,8 +212,9 @@ public class ReviewService {
         return locations.save(location);
     }
 
-    private static void verify(Review review) {
+    private static void verify(Review review, Admin admin) {
         review.getLocation().getTags().addAll(review.getTags());
+        review.setVerifiedBy(admin);
         review.setStatus(ReviewStatus.VERIFIED);
     }
 
