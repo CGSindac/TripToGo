@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated, ImageBackground, Image, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, View,
+  StyleSheet, Text, TextInput, View, Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,8 +18,7 @@ const IMG = {
   placeFallback: require('../../../assets/images/place-fallback.png'),
   tripFallback: require('../../../assets/images/trip-fallback.png'),
   avatar: require('../../../assets/images/avatar-default.png'),
-  search: require('../../../assets/images/icon-search.png'),
-  filter: require('../../../assets/images/icon-filter.png'),
+  searchWhite: require('../../../assets/images/icon-search-white.png'),
   heart: require('../../../assets/images/icon-heart.png'),
   heartFilled: require('../../../assets/images/icon-heart-filled.png'),
   star: require('../../../assets/images/icon-star.png'),
@@ -56,6 +55,31 @@ async function fetchHome() {
   }
   // TODO: add the auth token: headers: { Authorization: `Bearer ${token}` }
   const res = await fetch(`${API_URL}/api/home`);
+  if (!res.ok) throw new Error(`Server error ${res.status}`);
+  return res.json();
+}
+
+const SEARCH_SAMPLE = [
+  { id: 's1', name: 'Lipa Cathedral Plaza', type: 'Attraction', imageUrl: null, rating: 4.7, estimatedCost: 0, currency: 'PHP' },
+  { id: 's2', name: 'Barako Coffee House', type: 'Restaurant', imageUrl: null, rating: 4.6, estimatedCost: 250, currency: 'PHP' },
+  { id: 's3', name: 'Lipa Public Market', type: 'Shop', imageUrl: null, rating: 4.4, estimatedCost: 150, currency: 'PHP' },
+  { id: 's4', name: 'Sampaguita Garden Park', type: 'Destination', imageUrl: null, rating: 4.5, estimatedCost: 100, currency: 'PHP' },
+  { id: 's5', name: 'Lipa Heritage Walk', type: 'Experience', imageUrl: null, rating: 4.7, estimatedCost: 300, currency: 'PHP' },
+];
+
+// GET /api/search?q=...  ->  { results: [{ id, name, type, imageUrl, rating, estimatedCost, currency }] }
+async function fetchSearch(q) {
+  if (USE_SAMPLE_DATA) {
+    await new Promise((r) => setTimeout(r, 600));
+    const needle = q.toLowerCase();
+    return {
+      results: SEARCH_SAMPLE.filter(
+        (p) => p.name.toLowerCase().includes(needle) || p.type.toLowerCase().includes(needle)
+      ),
+    };
+  }
+  // TODO: add the auth token: headers: { Authorization: `Bearer ${token}` }
+  const res = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(q)}`);
   if (!res.ok) throw new Error(`Server error ${res.status}`);
   return res.json();
 }
@@ -176,6 +200,30 @@ function TripSkeleton() {
   );
 }
 
+function SearchRow({ place, onPress }) {
+  return (
+    <Pressable style={[s.card, s.tripCard]} onPress={onPress}>
+      <RemoteImage uri={place.imageUrl} fallback={IMG.placeFallback} style={s.tripImg} />
+      <View style={{ flex: 1, marginLeft: 14 }}>
+        <Text style={s.cardTitle} numberOfLines={1}>{place.name}</Text>
+        <Text style={s.desc}>{place.type}</Text>
+        <View style={[s.row, { marginTop: 6 }]}>
+          {place.rating != null && (
+            <>
+              <Image source={IMG.star} style={s.icon16} />
+              <Text style={s.rating}>{Number(place.rating).toFixed(1)}</Text>
+              <Text style={{ marginHorizontal: 5, color: '#B9B3D1' }}>•</Text>
+            </>
+          )}
+          <Text style={s.desc}>
+            {place.estimatedCost === 0 ? 'Free entrance' : formatMoney(place.estimatedCost, place.currency).replace(' est. cost', '')}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 function EmptyCard({ title, text }) {
   return (
     <View style={[s.card, s.emptyCard]}>
@@ -213,10 +261,24 @@ export default function Home() {
 
   const firstName = (data?.user?.name || '').split(' ')[0] || 'traveler';
 
-  const submitSearch = () => {
-    const q = query.trim();
-    if (q) router.push({ pathname: '/explore', params: { q } });
-  };
+  const trimmed = query.trim();
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchStatus, setSearchStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error'
+
+  useEffect(() => {
+    if (!trimmed) { setSearchStatus('idle'); setSearchResults([]); return; }
+    let active = true;
+    setSearchStatus('loading');
+    const t = setTimeout(async () => {
+      try {
+        const data = await fetchSearch(trimmed);
+        if (active) { setSearchResults(data.results || []); setSearchStatus('ready'); }
+      } catch (e) {
+        if (active) setSearchStatus('error');
+      }
+    }, 400); // wait until the user stops typing
+    return () => { active = false; clearTimeout(t); };
+  }, [trimmed]);
 
   const toggleSave = () => {
     setSaved((v) => !v);
@@ -252,18 +314,22 @@ export default function Home() {
 
       {/* Search */}
       <View style={s.searchWrap}>
-        <Image source={IMG.search} style={s.icon20} />
         <TextInput
           style={s.searchInput}
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={submitSearch}
+          onSubmitEditing={Keyboard.dismiss}
           placeholder="Search places, restaurants, shops"
           placeholderTextColor={C.muted}
           returnKeyType="search"
         />
-        <Pressable style={s.filterBtn} onPress={submitSearch}>
-          <Image source={IMG.filter} style={s.icon20} />
+        <Pressable
+          style={s.filterBtn}
+          onPress={Keyboard.dismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+        >
+          <Image source={IMG.searchWhite} style={s.icon20} />
         </Pressable>
       </View>
 
@@ -274,28 +340,89 @@ export default function Home() {
         </View>
       )}
 
-      {/* Recommended */}
-      <Text style={s.sectionTitle}>Recommended place</Text>
-      <View style={s.sectionBody}>
-        {loading ? <PlaceSkeleton />
-          : data?.recommended ? (
-            <PlaceCard
-              place={data.recommended}
-              saved={saved}
-              onToggleSave={toggleSave}
-              onPress={() => router.navigate(placeDetailsHref(data.recommended.locationId ?? data.recommended.id, 'home'))}
-            />
-          ) : <EmptyCard title="No recommendations yet" text="Tell us your travel style and we will suggest places." />}
-      </View>
+{trimmed ? (
+  <>
+    <Text style={s.sectionTitle}>Results for “{trimmed}”</Text>
+    <View style={s.sectionBody}>
+      {searchStatus === 'loading' && [0, 1, 2].map((i) => (
+        <View key={i} style={{ marginBottom: 12 }}>
+          <TripSkeleton />
+        </View>
+      ))}
 
-      {/* Current trip */}
-      <Text style={s.sectionTitle}>Current trip</Text>
-      <View style={s.sectionBody}>
-        {loading ? <TripSkeleton />
-          : data?.currentTrip ? (
-            <TripCard trip={data.currentTrip} onPress={() => {}} />
-          ) : <EmptyCard title="No trip planned" text="Your upcoming trip will show up here." />}
-      </View>
+      {searchStatus === 'error' && (
+        <EmptyCard
+          title="Search failed"
+          text="Please check your connection and try again."
+        />
+      )}
+
+      {searchStatus === 'ready' && (
+        searchResults.length ? (
+          searchResults.map((p) => (
+            <View key={p.id} style={{ marginBottom: 12 }}>
+              <SearchRow
+                place={p}
+                onPress={() => {
+                  /* TODO: open place details */
+                }}
+              />
+            </View>
+          ))
+        ) : (
+          <EmptyCard
+            title="No results found"
+            text="Try a different name, or browse by category."
+          />
+        )
+      )}
+    </View>
+  </>
+) : (
+  <>
+    {/* Recommended */}
+    <Text style={s.sectionTitle}>Recommended place</Text>
+    <View style={s.sectionBody}>
+      {loading ? (
+        <PlaceSkeleton />
+      ) : data?.recommended ? (
+        <PlaceCard
+          place={data.recommended}
+          saved={saved}
+          onToggleSave={toggleSave}
+          onPress={() =>
+            router.navigate(
+              placeDetailsHref(
+                data.recommended.locationId ?? data.recommended.id,
+                'home'
+              )
+            )
+          }
+        />
+      ) : (
+        <EmptyCard
+          title="No recommendations yet"
+          text="Tell us your travel style and we will suggest places."
+        />
+      )}
+    </View>
+
+    {/* Current trip */}
+    <Text style={s.sectionTitle}>Current trip</Text>
+    <View style={s.sectionBody}>
+      {loading ? (
+        <TripSkeleton />
+      ) : data?.currentTrip ? (
+        <TripCard trip={data.currentTrip} onPress={() => {}} />
+      ) : (
+        <EmptyCard
+          title="No trip planned"
+          text="Your upcoming trip will show up here."
+        />
+      )}
+    </View>
+  </>
+)}
     </ScrollView>
   );
 }
@@ -317,7 +444,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.border, elevation: 4,
     shadowColor: C.primary, shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 6 },
   },
-  searchInput: { flex: 1, marginLeft: 10, fontSize: 14, color: C.ink },
+  searchInput: { flex: 1, marginLeft: 0, fontSize: 14, color: C.ink },
   filterBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: C.ink, marginTop: 28, marginHorizontal: 24 },
   sectionBody: { marginTop: 12, paddingHorizontal: 24 },

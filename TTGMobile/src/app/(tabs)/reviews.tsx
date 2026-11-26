@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator, Image, Keyboard, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+} from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import ReviewDialog, { ReviewButton, ReviewCard } from '../../components/ReviewDialog';
@@ -10,9 +12,15 @@ import type { LocalReview, ReviewFields, ReviewPlace } from '../../data/reviews'
 
 const logo = require('../../../assets/images/logo-mark.png');
 const avatar = require('../../../assets/images/avatar-default.png');
+const searchIcon = require('../../../assets/images/icon-search.png');
+
+const C = {
+  primary: '#593BFA', ink: '#17133D', muted: '#6B6788', border: '#DDD5F5',
+  field: '#F8F6FF', soft: '#F1EDFF', green: '#176748', greenBg: '#E7F7EF',
+  warn: '#A8390A', warnBg: '#FFF0E6', error: '#D93B4A',
+};
 
 export default function Reviews() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { placeName, placeAddress, reviewRequest } = useLocalSearchParams<{
     placeName?: string;
@@ -22,6 +30,7 @@ export default function Reviews() {
   const [reviews, setReviews] = useState<LocalReview[]>([]);
   const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedPlace, setSelectedPlace] = useState<ReviewPlace>();
   const [dialog, setDialog] = useState<ReviewDialogState | null>(null);
@@ -39,6 +48,8 @@ export default function Reviews() {
       }
     }).catch(() => {
       if (active) setLoadStatus('error');
+    }).finally(() => {
+      if (active) setRefreshing(false);
     });
     return () => { active = false; };
   }, [attempt]);
@@ -54,7 +65,15 @@ export default function Reviews() {
     });
   }, [loadStatus, placeName, placeAddress, reviewRequest]);
 
-  const results = selectedPlace ? [] : searchReviewPlaces(query);
+  // the success message hides itself after a few seconds
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(''), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const results = useMemo(() => (selectedPlace ? [] : searchReviewPlaces(query)), [selectedPlace, query]);
+  const needsCorrection = reviews.filter((review) => review.status === 'correction').length;
 
   const saveReview = async (fields: ReviewFields, existingPlace: boolean, id?: string) => {
     if (savingReview.current) return;
@@ -77,10 +96,26 @@ export default function Reviews() {
     }
   };
 
+  const clearSearch = () => {
+    setQuery('');
+    setSelectedPlace(undefined);
+  };
+
   return (
     <View style={styles.screen}>
-      <ScrollView keyboardShouldPersistTaps="handled" style={{ marginBottom: 84 + insets.bottom * 0.5 }}
-        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 16 }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={C.primary}
+            colors={[C.primary]}
+            onRefresh={() => { setRefreshing(true); setAttempt((value) => value + 1); }}
+          />
+        }
+        // extra space at the bottom so the last card is not hidden by the floating tab bar
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 120 + insets.bottom }}>
         <View style={styles.content}>
           <View style={styles.brandRow}>
             <View style={styles.brand}>
@@ -89,24 +124,28 @@ export default function Reviews() {
             </View>
             <Image source={avatar} style={styles.avatar} />
           </View>
-          <Pressable accessibilityRole="button" style={styles.back} onPress={() => {
-            if (router.canGoBack()) router.back();
-            else router.navigate('/(tabs)/home');
-          }}>
-            <Text style={styles.backText}>‹  Back</Text>
-          </Pressable>
+
           <Text accessibilityRole="header" style={styles.title}>My Reviews</Text>
+
           <View style={styles.search}>
             <Text style={styles.searchLabel}>Find a place to review</Text>
-            <TextInput accessibilityLabel="Search place name or address" autoCorrect={false} returnKeyType="search"
-              placeholder="Search place name or address" placeholderTextColor="#6B6788"
-              style={styles.searchInput} value={query}
-              onChangeText={(value) => { setQuery(value); setSelectedPlace(undefined); }} />
+            <View style={styles.searchBox}>
+              <Image source={searchIcon} style={styles.searchIcon} />
+              <TextInput accessibilityLabel="Search place name or address" autoCorrect={false} returnKeyType="search"
+                placeholder="Search place name or address" placeholderTextColor={C.muted}
+                style={styles.searchInput} value={query}
+                onChangeText={(value) => { setQuery(value); setSelectedPlace(undefined); }} />
+              {!!query && (
+                <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} onPress={clearSearch}>
+                  <Text style={styles.clear}>✕</Text>
+                </Pressable>
+              )}
+            </View>
             {results.length > 0 && (
               <View style={styles.results}>
-                {results.map((result) => (
+                {results.map((result, index) => (
                   <Pressable accessibilityRole="button" key={result.id}
-                    style={({ pressed }) => [styles.result, pressed && styles.pressed]}
+                    style={({ pressed }) => [styles.result, index > 0 && styles.resultDivider, pressed && styles.pressed]}
                     onPress={() => {
                       setSelectedPlace(result);
                       setQuery(result.name);
@@ -122,27 +161,46 @@ export default function Reviews() {
               <Text style={styles.muted}>No matching places. You can enter a new place in the review form.</Text>
             )}
           </View>
+
           <ReviewButton label="Write a Review" disabled={loadStatus !== 'ready'} onPress={() => {
             Keyboard.dismiss();
             setNotice('');
             setDialog({ mode: 'compose', place: selectedPlace, query: query.trim() });
           }} />
 
-          {loadStatus === 'loading' && <ActivityIndicator color="#593BFA" accessibilityLabel="Loading reviews" />}
+          {loadStatus === 'loading' && <ActivityIndicator color={C.primary} accessibilityLabel="Loading reviews" />}
           {loadStatus === 'error' && (
-            <View style={styles.search}>
-              <Text accessibilityRole="alert" style={styles.muted}>Could not load your reviews.</Text>
-              <Pressable accessibilityRole="button" style={styles.back} onPress={() => {
+            <View style={styles.errorBox}>
+              <Text accessibilityRole="alert" style={styles.errorText}>Could not load your reviews.</Text>
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => {
                 setLoadStatus('loading');
                 setAttempt((value) => value + 1);
-              }}><Text style={styles.backText}>Try again</Text></Pressable>
+              }}><Text style={styles.retry}>Try again</Text></Pressable>
             </View>
           )}
           {loadStatus === 'ready' && (
             <>
+              {!!notice && (
+                <View style={styles.noticeBox}>
+                  <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>
+                </View>
+              )}
+              {needsCorrection > 0 && (
+                <View style={styles.warnBox}>
+                  <Text style={styles.warnText}>
+                    {needsCorrection === 1
+                      ? '1 review needs your correction.'
+                      : `${needsCorrection} reviews need your correction.`}
+                  </Text>
+                </View>
+              )}
               <Text style={styles.muted}>{reviews.length} submitted · Only approved reviews are public</Text>
-              {!!notice && <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>}
-              {reviews.length === 0 && <Text style={styles.muted}>You haven’t submitted a review yet.</Text>}
+              {reviews.length === 0 && (
+                <View style={styles.empty}>
+                  <Text style={styles.emptyTitle}>No reviews yet</Text>
+                  <Text style={styles.muted}>Search for a place above, then tap Write a Review.</Text>
+                </View>
+              )}
               <View style={styles.cards}>
                 {reviews.map((review) => (
                   <ReviewCard key={review.id} review={review} onPress={() => {
@@ -168,19 +226,35 @@ const styles = StyleSheet.create({
   brand: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logo: { width: 40, height: 29 },
   avatar: { width: 44, height: 44, borderRadius: 22 },
-  brandName: { color: '#17133D', fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  brandName: { color: C.ink, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
   accent: { color: '#A83DEB' },
-  title: { color: '#17133D', fontSize: 32, fontWeight: '900' },
-  back: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginVertical: -8 },
-  backText: { color: '#593BFA', fontSize: 14, fontWeight: '700' },
+  title: { color: C.ink, fontSize: 32, fontWeight: '900' },
   search: { gap: 8 },
-  searchLabel: { color: '#17133D', fontSize: 17, fontWeight: '700' },
-  searchInput: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, borderColor: '#DDD5F5', borderWidth: 1, borderRadius: 14, backgroundColor: '#F8F6FF', color: '#17133D', fontSize: 16 },
-  results: { borderColor: '#DDD5F5', borderWidth: 1, borderRadius: 14, paddingHorizontal: 12 },
-  result: { paddingVertical: 10, gap: 2 },
-  resultName: { color: '#17133D', fontSize: 15, fontWeight: '800' },
+  searchLabel: { color: C.ink, fontSize: 17, fontWeight: '700' },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingHorizontal: 16, gap: 10,
+    borderColor: C.border, borderWidth: 1.5, borderRadius: 26, backgroundColor: C.field,
+  },
+  searchIcon: { width: 20, height: 20 },
+  searchInput: { flex: 1, minHeight: 48, paddingVertical: 10, color: C.ink, fontSize: 16 },
+  clear: { color: C.muted, fontSize: 16, fontWeight: '700' },
+  results: { borderColor: C.border, borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 16, backgroundColor: '#FFF' },
+  result: { paddingVertical: 12, gap: 2 },
+  resultDivider: { borderTopWidth: 1, borderTopColor: '#EEE9FB' },
+  resultName: { color: C.ink, fontSize: 15, fontWeight: '800' },
   pressed: { opacity: 0.65 },
-  muted: { color: '#6B6788', fontSize: 14, lineHeight: 20 },
-  notice: { color: '#176748', fontSize: 14, fontWeight: '700' },
+  muted: { color: C.muted, fontSize: 14, lineHeight: 20 },
+  noticeBox: { backgroundColor: C.greenBg, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
+  notice: { color: C.green, fontSize: 14, fontWeight: '700' },
+  warnBox: { backgroundColor: C.warnBg, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
+  warnText: { color: C.warn, fontSize: 14, fontWeight: '700' },
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#FDECEE', borderRadius: 16, padding: 14,
+  },
+  errorText: { flex: 1, color: C.error, fontSize: 14, marginRight: 10 },
+  retry: { color: C.primary, fontSize: 14, fontWeight: '800' },
+  empty: { alignItems: 'center', gap: 4, paddingVertical: 24, borderWidth: 1.5, borderColor: '#EEE9FB', borderRadius: 24 },
+  emptyTitle: { color: C.ink, fontSize: 16, fontWeight: '800' },
   cards: { gap: 12 },
 });
