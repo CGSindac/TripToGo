@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator, Image, Keyboard, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import ReviewDialog, { ReviewButton, ReviewCard } from '../../components/ReviewDialog';
 import type { ReviewDialogState } from '../../components/ReviewDialog';
-import { loadLocalReviews, saveLocalReviews, searchReviewPlaces } from '../../data/reviews';
-import type { LocalReview, ReviewFields, ReviewPlace } from '../../data/reviews';
+import { ApiError } from '../../data/api';
+import { isSignedIn } from '../../data/auth';
+import { placeDetailsHref } from '../../data/places';
+import { getMyReviews, searchReviewPlaces } from '../../data/reviews';
+import type { Review, ReviewPlace } from '../../data/reviews';
 
 const logo = require('../../../assets/images/logo-mark.png');
 const avatar = require('../../../assets/images/avatar-default.png');
@@ -16,89 +19,99 @@ const searchIcon = require('../../../assets/images/icon-search.png');
 
 const C = {
   primary: '#593BFA', ink: '#17133D', muted: '#6B6788', border: '#DDD5F5',
-  field: '#F8F6FF', soft: '#F1EDFF', green: '#176748', greenBg: '#E7F7EF',
-  warn: '#A8390A', warnBg: '#FFF0E6', error: '#D93B4A',
+  field: '#F8F6FF', green: '#176748', greenBg: '#E7F7EF', error: '#D93B4A',
 };
 
 export default function Reviews() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { placeName, placeAddress, reviewRequest } = useLocalSearchParams<{
-    placeName?: string;
-    placeAddress?: string;
-    reviewRequest?: string;
-  }>();
-  const [reviews, setReviews] = useState<LocalReview[]>([]);
-  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error' | 'signedOut'>('loading');
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [total, setTotal] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
+  const [results, setResults] = useState<ReviewPlace[]>([]);
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const [selectedPlace, setSelectedPlace] = useState<ReviewPlace>();
   const [dialog, setDialog] = useState<ReviewDialogState | null>(null);
-  const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
-  const handledRequest = useRef<string>(undefined);
-  const savingReview = useRef(false);
+
+  const reloadReviews = useCallback(() => {
+    setPage(0);
+    setLoadStatus('loading');
+    setAttempt((value) => value + 1);
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    reloadReviews();
+  }, [reloadReviews]));
 
   useEffect(() => {
-    let active = true;
-    loadLocalReviews().then((saved) => {
-      if (active) {
-        setReviews(saved);
-        setLoadStatus('ready');
-      }
-    }).catch(() => {
-      if (active) setLoadStatus('error');
+    const controller = new AbortController();
+    getMyReviews(page, controller.signal).then((result) => {
+      if (controller.signal.aborted) return;
+      setReviews((current) => page === 0 ? result.content : [...current, ...result.content]);
+      setTotalPages(result.page.totalPages);
+      setTotal(result.page.totalElements);
+      setLoadStatus('ready');
+    }).catch((error) => {
+      if (controller.signal.aborted) return;
+      setLoadStatus(error instanceof ApiError && error.status === 401 ? 'signedOut' : 'error');
     }).finally(() => {
-      if (active) setRefreshing(false);
+      if (!controller.signal.aborted) setRefreshing(false);
     });
-    return () => { active = false; };
-  }, [attempt]);
+    return () => controller.abort();
+  }, [page, attempt]);
 
   useEffect(() => {
-    if (loadStatus !== 'ready' || typeof reviewRequest !== 'string' || typeof placeName !== 'string'
-      || !placeName || handledRequest.current === reviewRequest) return;
-    handledRequest.current = reviewRequest;
-    setNotice('');
-    setDialog({
-      mode: 'compose',
-      place: { name: placeName, address: typeof placeAddress === 'string' ? placeAddress : '' },
-    });
-  }, [loadStatus, placeName, placeAddress, reviewRequest]);
+    if (selectedPlace || !query.trim()) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      searchReviewPlaces(query.trim(), 0, controller.signal).then((matches) => {
+        if (controller.signal.aborted) return;
+        setResults(matches.content);
+        setSearchStatus('ready');
+      }).catch(() => {
+        if (!controller.signal.aborted) setSearchStatus('error');
+      });
+    }, 250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [query, selectedPlace, searchAttempt]);
 
-  // the success message hides itself after a few seconds
   useEffect(() => {
     if (!notice) return;
-    const t = setTimeout(() => setNotice(''), 4000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setNotice(''), 4000);
+    return () => clearTimeout(timer);
   }, [notice]);
 
-  const results = useMemo(() => (selectedPlace ? [] : searchReviewPlaces(query)), [selectedPlace, query]);
-  const needsCorrection = reviews.filter((review) => review.status === 'correction').length;
-
-  const saveReview = async (fields: ReviewFields, existingPlace: boolean, id?: string) => {
-    if (savingReview.current) return;
-    savingReview.current = true;
-    setSaving(true);
-    const submitted: LocalReview = {
-      ...fields, id: id ?? `local-${Date.now()}`, status: 'pending', existingPlace,
-    };
-    const next = id ? reviews.map((review) => review.id === id ? submitted : review) : [submitted, ...reviews];
-    try {
-      await saveLocalReviews(next);
-      setReviews(next);
-      setDialog(null);
-      setQuery('');
-      setSelectedPlace(undefined);
-      setNotice(id ? 'Correction saved on this device.' : 'Review saved on this device.');
-    } finally {
-      savingReview.current = false;
-      setSaving(false);
-    }
+  const changeSearch = (value: string) => {
+    setQuery(value);
+    setSelectedPlace(undefined);
+    setResults([]);
+    setSearchStatus(value.trim() ? 'loading' : 'idle');
   };
 
-  const clearSearch = () => {
-    setQuery('');
-    setSelectedPlace(undefined);
+  const signIn = () => {
+    setDialog(null);
+    router.push({ pathname: '/login', params: { returnTo: 'reviews' } });
+  };
+
+  const viewPlace = (id: number) => {
+    setDialog(null);
+    router.navigate(placeDetailsHref(id, 'reviews'));
+  };
+
+  const openForm = (newLocation = false) => {
+    Keyboard.dismiss();
+    if (!isSignedIn()) return signIn();
+    setNotice('');
+    setDialog(newLocation
+      ? { mode: 'compose', query: query.trim() }
+      : { mode: 'compose', place: selectedPlace });
   };
 
   return (
@@ -107,14 +120,9 @@ export default function Reviews() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            tintColor={C.primary}
-            colors={[C.primary]}
-            onRefresh={() => { setRefreshing(true); setAttempt((value) => value + 1); }}
-          />
+          <RefreshControl refreshing={refreshing} tintColor={C.primary} colors={[C.primary]}
+            onRefresh={() => { setRefreshing(true); reloadReviews(); }} />
         }
-        // extra space at the bottom so the last card is not hidden by the floating tab bar
         contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 120 + insets.bottom }}>
         <View style={styles.content}>
           <View style={styles.brandRow}>
@@ -131,71 +139,75 @@ export default function Reviews() {
             <Text style={styles.searchLabel}>Find a place to review</Text>
             <View style={styles.searchBox}>
               <Image source={searchIcon} style={styles.searchIcon} />
-              <TextInput accessibilityLabel="Search place name or address" autoCorrect={false} returnKeyType="search"
-                placeholder="Search place name or address" placeholderTextColor={C.muted}
-                style={styles.searchInput} value={query}
-                onChangeText={(value) => { setQuery(value); setSelectedPlace(undefined); }} />
+              <TextInput accessibilityLabel="Search place name" autoCorrect={false} returnKeyType="search"
+                placeholder="Search place name" placeholderTextColor={C.muted}
+                style={styles.searchInput} value={query} onChangeText={changeSearch} />
               {!!query && (
-                <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} onPress={clearSearch}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} onPress={() => changeSearch('')}>
                   <Text style={styles.clear}>✕</Text>
                 </Pressable>
               )}
             </View>
-            {results.length > 0 && (
+            {!selectedPlace && searchStatus === 'loading' && <ActivityIndicator color={C.primary} accessibilityLabel="Searching places" />}
+            {!selectedPlace && searchStatus === 'error' && (
+              <Pressable accessibilityRole="button" onPress={() => {
+                setSearchStatus('loading');
+                setSearchAttempt((value) => value + 1);
+              }}>
+                <Text style={styles.retry}>Could not search places. Try again.</Text>
+              </Pressable>
+            )}
+            {!selectedPlace && searchStatus === 'ready' && results.length > 0 && (
               <View style={styles.results}>
                 {results.map((result, index) => (
                   <Pressable accessibilityRole="button" key={result.id}
                     style={({ pressed }) => [styles.result, index > 0 && styles.resultDivider, pressed && styles.pressed]}
-                    onPress={() => {
-                      setSelectedPlace(result);
-                      setQuery(result.name);
-                      Keyboard.dismiss();
-                    }}>
+                    onPress={() => { setSelectedPlace(result); setQuery(result.name); Keyboard.dismiss(); }}>
                     <Text style={styles.resultName}>{result.name}</Text>
                     <Text style={styles.muted}>{result.address}</Text>
                   </Pressable>
                 ))}
               </View>
             )}
-            {!!query.trim() && !selectedPlace && results.length === 0 && (
-              <Text style={styles.muted}>No matching places. You can enter a new place in the review form.</Text>
+            {!selectedPlace && searchStatus === 'ready' && results.length === 0 && (
+              <Text style={styles.muted}>No matching places.</Text>
+            )}
+            {selectedPlace && (
+              <View style={styles.results}>
+                <Pressable accessibilityRole="button" style={styles.result} onPress={() => viewPlace(selectedPlace.id)}>
+                  <Text style={styles.resultName}>View {selectedPlace.name}</Text>
+                  <Text style={styles.muted}>{selectedPlace.address}</Text>
+                </Pressable>
+              </View>
             )}
           </View>
 
-          <ReviewButton label="Write a Review" disabled={loadStatus !== 'ready'} onPress={() => {
-            Keyboard.dismiss();
-            setNotice('');
-            setDialog({ mode: 'compose', place: selectedPlace, query: query.trim() });
-          }} />
+          <ReviewButton label="Write a Review" disabled={!selectedPlace} onPress={() => openForm()} />
+          {!selectedPlace && (
+            <Pressable accessibilityRole="button" style={styles.result} onPress={() => openForm(true)}>
+              <Text style={styles.retry}>Review a new location</Text>
+            </Pressable>
+          )}
 
-          {loadStatus === 'loading' && <ActivityIndicator color={C.primary} accessibilityLabel="Loading reviews" />}
+          {!!notice && (
+            <View style={styles.noticeBox}>
+              <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>
+            </View>
+          )}
+          {loadStatus === 'loading' && <ActivityIndicator color={C.primary} accessibilityLabel="Loading my reviews" />}
+          {loadStatus === 'signedOut' && <ReviewButton label="Log In to See My Reviews" onPress={signIn} />}
           {loadStatus === 'error' && (
             <View style={styles.errorBox}>
               <Text accessibilityRole="alert" style={styles.errorText}>Could not load your reviews.</Text>
-              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => {
-                setLoadStatus('loading');
-                setAttempt((value) => value + 1);
-              }}><Text style={styles.retry}>Try again</Text></Pressable>
+              <Pressable accessibilityRole="button" hitSlop={8} onPress={reloadReviews}>
+                <Text style={styles.retry}>Try again</Text>
+              </Pressable>
             </View>
           )}
-          {loadStatus === 'ready' && (
+          {(loadStatus === 'ready' || (loadStatus === 'loading' && page > 0)) && (
             <>
-              {!!notice && (
-                <View style={styles.noticeBox}>
-                  <Text accessibilityLiveRegion="polite" style={styles.notice}>{notice}</Text>
-                </View>
-              )}
-              {needsCorrection > 0 && (
-                <View style={styles.warnBox}>
-                  <Text style={styles.warnText}>
-                    {needsCorrection === 1
-                      ? '1 review needs your correction.'
-                      : `${needsCorrection} reviews need your correction.`}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.muted}>{reviews.length} submitted · Only approved reviews are public</Text>
-              {reviews.length === 0 && (
+              <Text style={styles.muted}>{total} submitted</Text>
+              {total === 0 && (
                 <View style={styles.empty}>
                   <Text style={styles.emptyTitle}>No reviews yet</Text>
                   <Text style={styles.muted}>Search for a place above, then tap Write a Review.</Text>
@@ -203,18 +215,32 @@ export default function Reviews() {
               )}
               <View style={styles.cards}>
                 {reviews.map((review) => (
-                  <ReviewCard key={review.id} review={review} onPress={() => {
+                  <ReviewCard key={review.reviewId} review={review} onPress={() => {
                     setNotice('');
-                    setDialog(review.status === 'correction' ? { mode: 'correct', review } : { mode: 'view', review });
+                    setDialog(review.status === 'REJECTED' && review.locationId == null && review.proposedLocation
+                      ? { mode: 'correct', review } : { mode: 'view', review });
                   }} />
                 ))}
               </View>
+              {loadStatus === 'ready' && page + 1 < totalPages && (
+                <Pressable accessibilityRole="button" style={styles.result} onPress={() => {
+                  setLoadStatus('loading');
+                  setPage((value) => value + 1);
+                }}>
+                  <Text style={styles.retry}>Load more reviews</Text>
+                </Pressable>
+              )}
             </>
           )}
         </View>
       </ScrollView>
-      {dialog && <ReviewDialog dialog={dialog} saving={saving} onSubmit={saveReview}
-        onClose={() => { if (!savingReview.current) setDialog(null); }} />}
+      {dialog && <ReviewDialog dialog={dialog} onSignIn={signIn} onViewPlace={viewPlace}
+        onClose={() => setDialog(null)} onSubmitted={(saved) => {
+          setDialog(null);
+          changeSearch('');
+          setNotice(saved.status === 'VERIFIED' ? 'Review published.' : 'Review submitted for approval.');
+          reloadReviews();
+        }} />}
     </View>
   );
 }
@@ -246,8 +272,6 @@ const styles = StyleSheet.create({
   muted: { color: C.muted, fontSize: 14, lineHeight: 20 },
   noticeBox: { backgroundColor: C.greenBg, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
   notice: { color: C.green, fontSize: 14, fontWeight: '700' },
-  warnBox: { backgroundColor: C.warnBg, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
-  warnText: { color: C.warn, fontSize: 14, fontWeight: '700' },
   errorBox: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: '#FDECEE', borderRadius: 16, padding: 14,

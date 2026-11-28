@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BackHandler,
@@ -15,6 +15,8 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+
+import { register, signedInDestination } from '../data/auth';
 
 const COLORS = {
   background: '#FFFFFF',
@@ -36,8 +38,6 @@ const COLORS = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_PATTERN = /^[A-Za-z0-9_.]{3,20}$/; // no spaces, no @
-const CODE_LENGTH = 6;
-const RESEND_SECONDS = 30;
 
 // Images. The shape-*.png files are the ones your splash already uses; the rest are new.
 const IMG = {
@@ -53,7 +53,6 @@ const IMG = {
   checkPurple: require('../../assets/images/badge-check-purple.png'),
   checkGreen: require('../../assets/images/badge-check-green.png'),
   checkWhite: require('../../assets/images/check-white.png'),
-  envelope: require('../../assets/images/illustration-envelope-plain.png'),
   logo: require('../../assets/images/splash-logo.png'),
   logoShadow: require('../../assets/images/logo-shadow.png'),
 };
@@ -104,7 +103,7 @@ function Dot({ x, y, size, color }) {
 }
 
 // ---------------------------------------------------------------------------
-// Header with the back button and the 3-step progress bar
+// Header with the back button and the signup progress bar
 // ---------------------------------------------------------------------------
 function Header({ stepNumber, onBack }) {
   return (
@@ -113,19 +112,20 @@ function Header({ stepNumber, onBack }) {
         accessibilityRole="button"
         accessibilityLabel="Back"
         onPress={onBack}
-        style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+        disabled={!onBack}
+        style={({ pressed }) => [styles.backButton, !onBack && { opacity: 0 }, pressed && styles.pressed]}
       >
         <Text style={styles.backArrow}>{'‹'}</Text>
       </Pressable>
-      <View style={styles.progress} accessible accessibilityLabel={`Step ${stepNumber} of 3`}>
-        {[1, 2, 3].map((n) => (
+      <View style={styles.progress} accessible accessibilityLabel={`Step ${stepNumber} of 2`}>
+        {[1, 2].map((n) => (
           <View
             key={n}
             style={[styles.progressSegment, { backgroundColor: n <= stepNumber ? COLORS.primary : COLORS.track }]}
           />
         ))}
       </View>
-      <Text style={styles.progressText}>{stepNumber}/3</Text>
+      <Text style={styles.progressText}>{stepNumber}/2</Text>
     </View>
   );
 }
@@ -150,10 +150,11 @@ function PrimaryButton({ label, onPress, loading, style }) {
 // ---------------------------------------------------------------------------
 export default function Signup() {
   const router = useRouter();
+  const { returnTo, placeId } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
 
-  const [step, setStep] = useState('details'); // 'details' | 'verify' | 'interests' | 'done'
+  const [step, setStep] = useState('details');
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(null);
   const [errors, setErrors] = useState({});
@@ -168,47 +169,15 @@ export default function Signup() {
   const passwordRef = useRef(null);
 
   // Step 2
-  const [code, setCode] = useState(Array(CODE_LENGTH).fill(''));
-  const [cooldown, setCooldown] = useState(0);
-  const [notice, setNotice] = useState('');
-  const codeRefs = useRef([]);
-
-  // Step 3
   const [picked, setPicked] = useState([]);
 
   const clearError = (key) => {
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
-  // ----- Android hardware back button moves between steps -----
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (step === 'verify') {
-        setStep('details');
-        return true;
-      }
-      if (step === 'interests') {
-        setStep('verify');
-        return true;
-      }
-      if (step === 'done') return true;
-      return false;
-    });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => step !== 'details');
     return () => sub.remove();
-  }, [step]);
-
-  // ----- Resend countdown -----
-  useEffect(() => {
-    if (cooldown <= 0) return undefined;
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [cooldown]);
-
-  // ----- Focus the first code box when the verify step opens -----
-  useEffect(() => {
-    if (step !== 'verify') return undefined;
-    const t = setTimeout(() => codeRefs.current[0]?.focus(), 250);
-    return () => clearTimeout(t);
   }, [step]);
 
   const goBackFromDetails = () => {
@@ -245,19 +214,8 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      // TODO: create the account on your backend, which should email a 6-digit code, for example:
-      // const res = await fetch(`${API_URL}/auth/register`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ username: username.trim(), email: email.trim(), password }),
-      //   //  backend should answer 409 if the username or email is already taken
-      // });
-      // if (res.status === 409) throw new Error('That username or email is already taken.');
-      // if (!res.ok) throw new Error('We could not create your account.');
-      setCode(Array(CODE_LENGTH).fill(''));
-      setNotice('');
-      setCooldown(RESEND_SECONDS);
-      setStep('verify');
+      await register(username.trim(), email.trim(), password);
+      setStep('interests');
     } catch (e) {
       setErrors({ form: e?.message || 'Something went wrong. Please try again.' });
     } finally {
@@ -265,74 +223,7 @@ export default function Signup() {
     }
   };
 
-  // ----- Step 2: verify code -----
-  const handleCodeChange = (index, text) => {
-    const digits = text.replace(/\D/g, '');
-    setErrors((e) => ({ ...e, code: undefined }));
-
-    if (!digits) {
-      setCode((c) => c.map((d, i) => (i === index ? '' : d)));
-      return;
-    }
-    if (digits.length === 1) {
-      setCode((c) => c.map((d, i) => (i === index ? digits : d)));
-      if (index < CODE_LENGTH - 1) codeRefs.current[index + 1]?.focus();
-      return;
-    }
-    // A whole code was pasted or auto-filled from an SMS or email
-    setCode((c) => {
-      const next = [...c];
-      digits
-        .slice(0, CODE_LENGTH - index)
-        .split('')
-        .forEach((d, i) => {
-          next[index + i] = d;
-        });
-      return next;
-    });
-    const last = Math.min(index + digits.length, CODE_LENGTH) - 1;
-    codeRefs.current[Math.min(last + 1, CODE_LENGTH - 1)]?.focus();
-  };
-
-  const handleCodeKey = (index, e) => {
-    if (e.nativeEvent.key === 'Backspace' && !code[index] && index > 0) {
-      setCode((c) => c.map((d, i) => (i === index - 1 ? '' : d)));
-      codeRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const submitCode = async () => {
-    if (loading) return;
-    if (code.join('').length < CODE_LENGTH) {
-      setErrors({ code: 'Enter the 6-digit code.' });
-      return;
-    }
-    setLoading(true);
-    try {
-      // TODO: check the code on backend, for example:
-      // const res = await fetch(`${API_URL}/auth/verify`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email: email.trim(), code: code.join('') }),
-      // });
-      // if (!res.ok) throw new Error('That code is not right. Please try again.');
-      setErrors({});
-      setStep('interests');
-    } catch (e) {
-      setErrors({ code: e?.message || 'Something went wrong. Please try again.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resendCode = async () => {
-    if (cooldown > 0) return;
-    // TODO: ask backend to send a new code.
-    setNotice('We sent you a new code.');
-    setCooldown(RESEND_SECONDS);
-  };
-
-  // ----- Step 3: interests -----
+  // ----- Step 2: interests -----
   const toggleInterest = (id) =>
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
@@ -345,7 +236,6 @@ export default function Signup() {
   const contentWidth = Math.min(width, 480);
   const cardWidth = (contentWidth - 48 - 12) / 2;
   const isShort = height < 700;
-  const timer = `0:${String(cooldown).padStart(2, '0')}`;
 
   const contentStyle = [
     styles.content,
@@ -475,7 +365,7 @@ export default function Signup() {
                 <Text style={styles.showText}>{showPassword ? 'Hide' : 'Show'}</Text>
               </Pressable>
             </View>
-            <View style={styles.strengthRow} accessible accessibilityLabel={`Password strength: ${score} of 3`}>
+            <View style={styles.strengthRow} accessible accessibilityLabel={`Password strength: ${score} of 2`}>
               {[1, 2, 3].map((n) => (
                 <View
                   key={n}
@@ -528,105 +418,10 @@ export default function Signup() {
     </>
   );
 
-  // =========================================================================
-  // STEP 2: Verify your email
-  // =========================================================================
-  const renderVerify = () => (
-    <ScrollView
-      contentContainerStyle={contentStyle}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
-      <Header stepNumber={2} onBack={() => setStep('details')} />
-
-      <View style={[styles.area, { height: 150, marginTop: 20 }]}>
-        <Shape source={IMG.sparkle} x={38} y={20} w={28} />
-        <Shape source={IMG.sparkle} x={290} y={96} w={22} tint={COLORS.pink} />
-        <Dot x={300} y={30} size={12} color={COLORS.violet} />
-        <Dot x={62} y={110} size={12} color={COLORS.coral} />
-        <View style={styles.illustrationWrap}>
-          <Image
-            source={IMG.envelope}
-            style={{ width: 190, height: 133, marginTop: 8 }}
-            resizeMode="contain"
-            accessibilityLabel="An envelope"
-          />
-        </View>
-      </View>
-
-      <Text style={[styles.heading, { marginTop: 8 }]} accessibilityRole="header">
-        Verify your{'\n'}email
-      </Text>
-      <Text style={styles.subtitle}>
-        Enter the 6-digit code we sent to <Text style={styles.emailInline}>{email.trim() || 'your email'}</Text>.
-      </Text>
-
-      <View style={styles.codeRow}>
-        {code.map((digit, i) => (
-          <TextInput
-            key={i}
-            ref={(r) => {
-              codeRefs.current[i] = r;
-            }}
-            style={[
-              styles.codeBox,
-              !!digit && styles.codeBoxFilled,
-              focused === `code${i}` && styles.inputFocused,
-              !!errors.code && styles.inputError,
-            ]}
-            value={digit}
-            onChangeText={(t) => handleCodeChange(i, t)}
-            onKeyPress={(e) => handleCodeKey(i, e)}
-            onFocus={() => setFocused(`code${i}`)}
-            onBlur={() => setFocused(null)}
-            keyboardType="number-pad"
-            autoComplete={i === 0 ? 'sms-otp' : 'off'}
-            textContentType={i === 0 ? 'oneTimeCode' : 'none'}
-            selectTextOnFocus
-            maxLength={i === 0 ? CODE_LENGTH : 2}
-            caretHidden
-            accessibilityLabel={`Digit ${i + 1}`}
-          />
-        ))}
-      </View>
-      {!!errors.code && <Text style={[styles.errorText, styles.center, { marginTop: 10 }]}>{errors.code}</Text>}
-
-      <View style={styles.resendRow}>
-        <Text style={styles.footer}>Did not get a code? </Text>
-        {cooldown > 0 ? (
-          <Text style={styles.resendWait}>Resend in {timer}</Text>
-        ) : (
-          <Pressable accessibilityRole="button" onPress={resendCode} hitSlop={8}>
-            <Text style={styles.footerLink}>Resend code</Text>
-          </Pressable>
-        )}
-      </View>
-      {!!notice && <Text style={styles.notice}>{notice}</Text>}
-
-      <PrimaryButton
-        label={loading ? 'Verifying...' : 'Verify'}
-        onPress={submitCode}
-        loading={loading}
-        style={{ marginTop: 24 }}
-      />
-
-      <View style={styles.spacer} />
-
-      <Text style={[styles.footer, styles.center]}>
-        Wrong email?{' '}
-        <Text style={styles.footerLink} onPress={() => setStep('details')} accessibilityRole="link">
-          Change it
-        </Text>
-      </Text>
-    </ScrollView>
-  );
-
-  // =========================================================================
-  // STEP 3: Travel style
-  // =========================================================================
+  // Step 2: interests
   const renderInterests = () => (
     <ScrollView contentContainerStyle={contentStyle} showsVerticalScrollIndicator={false}>
-      <Header stepNumber={3} onBack={() => setStep('verify')} />
+      <Header stepNumber={2} />
 
       <Text style={[styles.heading, { marginTop: 28 }]} accessibilityRole="header">
         What is your{'\n'}travel style?
@@ -709,7 +504,7 @@ export default function Signup() {
 
         <PrimaryButton
           label="Start exploring"
-          onPress={() => router.replace('/(tabs)/home')}
+          onPress={() => router.replace(signedInDestination(returnTo, placeId))}
           style={{ width: '100%' }}
         />
       </ScrollView>
@@ -721,7 +516,6 @@ export default function Signup() {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
       <View style={styles.flex}>
         {step === 'details' && renderDetails()}
-        {step === 'verify' && renderVerify()}
         {step === 'interests' && renderInterests()}
         {step === 'done' && renderDone()}
       </View>
@@ -773,9 +567,7 @@ const styles = StyleSheet.create({
   progressSegment: { flex: 1, height: 6, borderRadius: 3 },
   progressText: { fontSize: 14, fontWeight: '700', color: COLORS.muted },
 
-  // Illustration area (verify step)
   area: { width: '100%', position: 'relative' },
-  illustrationWrap: { position: 'absolute', left: 0, right: 0, top: 0, alignItems: 'center' },
 
   // Text
   heading: {
@@ -787,8 +579,6 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   subtitle: { marginTop: 10, fontSize: 16, lineHeight: 23, fontWeight: '500', color: COLORS.muted },
-  emailInline: { fontWeight: '800', color: COLORS.ink },
-  notice: { marginTop: 8, fontSize: 14, fontWeight: '700', color: COLORS.primary, textAlign: 'center' },
 
   // Form
   form: { marginTop: 24, gap: 16 },
@@ -848,32 +638,6 @@ const styles = StyleSheet.create({
   checkboxTick: { width: 18, height: 18 },
   agreeText: { flex: 1, fontSize: 14, lineHeight: 20, fontWeight: '500', color: COLORS.muted },
   agreeLink: { fontWeight: '800', color: COLORS.ink },
-
-  // Verify code
-  codeRow: { marginTop: 28, flexDirection: 'row', gap: 10 },
-  codeBox: {
-    flex: 1,
-    minWidth: 0,
-    height: 64,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.field,
-    textAlign: 'center',
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.ink,
-    padding: 0,
-  },
-  codeBoxFilled: { backgroundColor: '#FFFFFF' },
-  resendRow: {
-    marginTop: 20,
-    minHeight: 32,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resendWait: { fontSize: 15, fontWeight: '800', color: COLORS.ink },
 
   // Travel style cards
   grid: { marginTop: 24, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Alert,
@@ -15,6 +15,8 @@ import {
   View,
 } from 'react-native';
 
+import { login, signedInDestination } from '../data/auth';
+
 const COLORS = {
   background: '#FFFFFF',
   primary: '#593BFA',
@@ -27,10 +29,10 @@ const COLORS = {
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const USERNAME_PATTERN = /^[A-Za-z0-9_.]{3,20}$/;
 
 export default function Login() {
   const router = useRouter();
+  const { returnTo, placeId } = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const passwordRef = useRef(null);
 
@@ -51,7 +53,7 @@ export default function Login() {
     const next = {};
     const value = identifier.trim();
     if (method === 'email' && !EMAIL_PATTERN.test(value)) next.identifier = 'Enter a valid email address.';
-    if (method === 'username' && !USERNAME_PATTERN.test(value)) next.identifier = 'Enter your username.';
+    if (method === 'username' && !value) next.identifier = 'Enter your username.';
     if (!password) next.password = 'Enter your password.';
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -61,16 +63,8 @@ export default function Login() {
     if (loading || !validate()) return;
     setLoading(true);
     try {
-      // TODO: call backend here, for example:
-      // const res = await fetch(`${API_URL}/auth/login`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   // send ONE field, `login`, which is either the email or the username:
-      //   body: JSON.stringify({ login: identifier.trim(), password }),
-      // });
-      // if (!res.ok) throw new Error('Wrong email/username or password.');
-      // then save the token and router.replace('/your-home-screen');
-      Alert.alert('Logged in', 'The form works. Connect it to your backend next.');
+      await login(identifier.trim(), password);
+      router.replace(signedInDestination(returnTo, placeId));
     } catch (e) {
       setErrors({ form: e?.message || 'Something went wrong. Please try again.' });
     } finally {
@@ -282,7 +276,7 @@ export default function Login() {
           {/* Footer */}
           <Text style={styles.footer}>
             New to TripToGo?{' '}
-            <Text style={styles.footerLink} onPress={() => router.push('/signup')} accessibilityRole="link">
+            <Text style={styles.footerLink} onPress={() => router.push({ pathname: '/signup', params: { returnTo, placeId } })} accessibilityRole="link">
               Create an account
             </Text>
           </Text>

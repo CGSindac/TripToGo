@@ -5,12 +5,8 @@ import {
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { placeDetailsHref, sampleBrowsePlaces } from '../../data/places';
-
-// ---------- CONFIG ----------
-const API_URL = 'http://10.0.2.2:8080'; // Android emulator 
-const USE_SAMPLE_DATA = true; // set to false once backend has GET /api/places
+import { useFocusEffect, useRouter } from 'expo-router';
+import { getPlaces, placeDetailsHref, sampleBrowsePlaces } from '../../data/places';
 
 const IMG = {
   logo: require('../../../assets/images/logo-mark.png'),
@@ -47,33 +43,35 @@ const SORTS = [
 const RATINGS = [{ v: 0, label: 'Any rating' }, { v: 4, label: '4.0 and up' }, { v: 4.5, label: '4.5 and up' }];
 
 // ---------- DATA ----------
-// Expected API response (GET /api/places?city=&category=&q=&sort=):
-// {
-//   location: { city: "Lipa City, Batangas" },
-//   places: [{ id, name, category: "Attractions"|"Restaurants"|"Shops",
-//              imageUrl, rating, estimatedCost, currency, saved }]
-// }
-const SAMPLE = {
-  location: { city: 'Lipa City, Batangas' },
-  places: sampleBrowsePlaces,
+const CITY = { city: 'Lipa City, Batangas' };
+const CATEGORY_TAGS = {
+  Attractions: ['attraction', 'attractions'],
+  Restaurants: ['restaurant', 'restaurants'],
+  Shops: ['shop', 'shops'],
 };
 
-async function fetchPlaces({ category, q }) {
-  if (USE_SAMPLE_DATA) {
-    await new Promise((r) => setTimeout(r, 700));
-    const places = SAMPLE.places.filter(
-      (p) => (category === 'All' || p.category === category) &&
-        (!q || p.name.toLowerCase().includes(q.toLowerCase()))
-    );
-    return { ...SAMPLE, places };
+async function fetchPlaces(category, query, signal) {
+  let places = [];
+  try {
+    let page = 0;
+    let totalPages;
+    do {
+      const result = await getPlaces(query, page, signal);
+      places.push(...result.content.map((place) => ({
+        ...place,
+        category: Object.keys(CATEGORY_TAGS).find((key) =>
+          place.tags.some((name) => CATEGORY_TAGS[key].includes(name.toLowerCase()))),
+        rating: place.enjoymentRating == null ? null : place.enjoymentRating / 2,
+      })));
+      totalPages = result.page.totalPages;
+      page++;
+    } while (page < totalPages);
+  } catch (error) {
+    if (signal.aborted || !(error instanceof TypeError)) throw error;
+    places = sampleBrowsePlaces.filter((place) => place.name.toLowerCase().includes(query.toLowerCase()))
+      .map((place) => ({ ...place, rating: null }));
   }
-  const params = new URLSearchParams();
-  if (category !== 'All') params.append('category', category);
-  if (q) params.append('q', q);
-  // TODO: add the auth token: headers: { Authorization: `Bearer ${token}` }
-  const res = await fetch(`${API_URL}/api/places?${params.toString()}`);
-  if (!res.ok) throw new Error(`Server error ${res.status}`);
-  return res.json();
+  return { location: CITY, places: places.filter((place) => category === 'All' || place.category === category) };
 }
 
 // ---------- HELPERS ----------
@@ -114,15 +112,17 @@ function PlaceRow({ place, saved, onToggleSave, onPress }) {
       <RemoteImage uri={place.imageUrl} fallback={FALLBACK[place.category] || FALLBACK.Attractions} style={s.thumb} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.name} numberOfLines={1}>{place.name}</Text>
-        <View style={[s.tag, { backgroundColor: tag.bg }]}>
-          <Text style={[s.tagText, { color: tag.fg }]}>{place.category}</Text>
-        </View>
+        {!!place.category && (
+          <View style={[s.tag, { backgroundColor: tag.bg }]}>
+            <Text style={[s.tagText, { color: tag.fg }]}>{place.category}</Text>
+          </View>
+        )}
         <View style={[s.row, { marginTop: 4 }]}>
           {place.rating != null && (
             <>
               <Image source={IMG.star} style={s.icon16} />
               <Text style={s.rating}>{Number(place.rating).toFixed(1)}</Text>
-              <Text style={s.dot}>•</Text>
+              {place.estimatedCost != null && <Text style={s.dot}>•</Text>}
             </>
           )}
           <Text style={s.cost} numberOfLines={1}>{formatCost(place.estimatedCost, place.currency)}</Text>
@@ -176,6 +176,7 @@ export default function Browse() {
   const [minRating, setMinRating] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
   const [savedIds, setSavedIds] = useState(null); // null until data arrives
+  const activeLoad = useRef(null);
 
   // wait 400 ms after typing before searching
   useEffect(() => {
@@ -184,28 +185,36 @@ export default function Browse() {
   }, [query]);
 
   const load = useCallback(async (isRefresh = false) => {
+    activeLoad.current?.abort();
+    const controller = new AbortController();
+    activeLoad.current = controller;
     isRefresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
-      const res = await fetchPlaces({ category, q: debouncedQuery });
+      const res = await fetchPlaces(category, debouncedQuery, controller.signal);
+      if (controller.signal.aborted) return;
       setData(res);
       setSavedIds((prev) => {
         const fromApi = res.places.filter((p) => p.saved).map((p) => p.id);
         return prev ? Array.from(new Set([...prev, ...fromApi])) : fromApi;
       });
-    } catch (e) {
-      setError('We could not load places. Please try again.');
+    } catch {
+      if (!controller.signal.aborted) setError('We could not load places. Please try again.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [category, debouncedQuery]);
 
-  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => {
+    load();
+    return () => activeLoad.current?.abort();
+  }, [load]));
 
   const toggleSave = (id) => {
     setSavedIds((prev) => (prev || []).includes(id) ? prev.filter((x) => x !== id) : [...(prev || []), id]);
-    // TODO: POST/DELETE `${API_URL}/api/places/${id}/save`
   };
 
   // sort + rating filter on the phone (move to the API later if the list gets long)

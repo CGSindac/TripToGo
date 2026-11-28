@@ -1,68 +1,60 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { formatAddress, request } from './api';
+import type { Address, Page } from './api';
+import { signedInRequest } from './auth';
 
-import { sampleBrowsePlaces, sampleRecommendedPlace } from './places';
+export type ReviewPlace = { id: number; name: string; address: string };
+export type ReviewTag = { code: string; name: string };
+export type ProposedLocation = { name: string; address: Address };
 
-export type ReviewPlace = { id: string; name: string; address: string };
-
-export type ReviewFields = {
-  placeName: string;
-  address: string;
-  tags: string[];
-  enjoyment: number;
-  budget: number;
-  text: string;
+type ReviewFields = {
+  tagCodes: string[];
+  enjoymentRating: number;
+  budgetRating: number;
+  writtenReview: string;
 };
 
-export type LocalReview = ReviewFields & {
-  id: string;
-  status: 'approved' | 'pending' | 'correction';
-  existingPlace: boolean;
+export type ReviewSubmission = ReviewFields & (
+  | { locationId: number }
+  | { newLocation: ProposedLocation }
+);
+
+export type Review = {
+  reviewId: number;
+  locationId: number | null;
+  locationName: string | null;
+  locationAddress: Address | null;
+  proposedLocation: ProposedLocation | null;
+  authorUsername: string | null;
+  tagCodes: string[];
+  tagNames: string[];
+  enjoymentRating: number;
+  budgetRating: number;
+  writtenReview: string | null;
+  status: 'VERIFIED' | 'PENDING' | 'PENDING_LOCATION' | 'REJECTED';
 };
 
-const STORAGE_KEY = 'triptogo.my-reviews.v1';
-const gardenAddress = '24 Garden Road, Brgy. Balintawak, Lipa City, Batangas';
-const cafeAddress = 'Balete, Batangas';
-const places: ReviewPlace[] = [
-  ...sampleBrowsePlaces,
-  sampleRecommendedPlace,
-  { id: 'garden', name: 'Lipa Community Garden', address: gardenAddress },
-];
+export async function searchReviewPlaces(query: string, page: number, signal: AbortSignal): Promise<Page<ReviewPlace>> {
+  const result = await request<Page<{ locationId: number; name: string; address: Address }>>(
+    `/reviews/locations?search=${encodeURIComponent(query)}&page=${page}`, 'Could not search places.', { signal },
+  );
+  return {
+    ...result,
+    content: result.content.map(({ locationId, name, address }) => ({ id: locationId, name, address: formatAddress(address) })),
+  };
+}
 
-const sampleReviews: LocalReview[] = [
-  {
-    id: 'sample-garden', placeName: 'Lipa Community Garden', address: gardenAddress,
-    tags: ['nature', 'walking'], enjoyment: 8, budget: 7,
-    status: 'approved', existingPlace: true, text: 'Quiet paths and plenty of shade for an afternoon walk.',
-  },
-  {
-    id: 'sample-cafe', placeName: 'Balete Lakeside Café', address: cafeAddress,
-    tags: ['local food', 'lake view'], enjoyment: 8, budget: 7,
-    status: 'pending', existingPlace: false, text: 'A good stop for a snack with a view of the lake.',
-  },
-  {
-    id: 'sample-food', placeName: 'Old Town Food Stop', address: '',
-    tags: ['local food', 'affordable'], enjoyment: 7, budget: 9,
-    status: 'correction', existingPlace: false, text: 'Affordable meals and a quick stop for lunch.',
-  },
-];
+export function getReviewTags(signal: AbortSignal) {
+  return request<ReviewTag[]>('/reviews/tags', 'Could not load tags.', { signal });
+}
 
-export function searchReviewPlaces(query: string) {
-  const searchTerms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  if (searchTerms.length === 0) return [];
-  // TODO: Query the place catalog here when review search is connected to the backend.
-  return places.filter((place) => {
-    const searchable = `${place.name} ${place.address}`.toLocaleLowerCase();
-    return searchTerms.every((term) => searchable.includes(term));
+export function getMyReviews(page: number, signal: AbortSignal) {
+  return signedInRequest<Page<Review>>(`/reviews/mine?page=${page}`, 'Could not load your reviews.', { signal });
+}
+
+export function submitReview(review: ReviewSubmission) {
+  return signedInRequest<Review>('/reviews', 'Could not submit your review.', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(review),
   });
-}
-
-export async function loadLocalReviews(): Promise<LocalReview[]> {
-  // TODO: Load the signed-in user's reviews and moderation statuses here.
-  const saved = await AsyncStorage.getItem(STORAGE_KEY);
-  return saved === null ? sampleReviews : JSON.parse(saved);
-}
-
-export async function saveLocalReviews(reviews: LocalReview[]) {
-  // TODO: Submit new or corrected reviews here and use the returned moderation status.
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(reviews));
 }

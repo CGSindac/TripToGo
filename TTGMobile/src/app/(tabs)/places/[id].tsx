@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused, useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import ReviewDialog from '../../../components/ReviewDialog';
+import { isSignedIn } from '../../../data/auth';
 import { getPlaceDetails, getPlaceReviews, isSamplePlace } from '../../../data/places';
-import type { PlaceDetails, PlaceReview } from '../../../data/places';
+import type { PlaceDetails } from '../../../data/places';
+import type { Review } from '../../../data/reviews';
 
 const colors = { ink: '#17133D', muted: '#6B6788', primary: '#593BFA', border: '#DDD5F5', soft: '#F8F6FF' };
 const images = {
@@ -36,7 +39,7 @@ function formatExpense(amount?: number, currency = 'PHP') {
 }
 
 function PlaceReviews({ id }: { id: string }) {
-  const [reviews, setReviews] = useState<PlaceReview[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(0);
@@ -62,12 +65,12 @@ function PlaceReviews({ id }: { id: string }) {
       <Text accessibilityRole="header" style={styles.sectionTitle}>
         Community reviews{total != null ? ` (${total})` : ''}
       </Text>
-      {isSamplePlace(id) && reviews.length > 0 && <Text style={styles.caption}>Sample reviews</Text>}
       {reviews.map((review) => (
         <View key={review.reviewId} style={styles.review}>
           <Text style={styles.reviewAuthor}>{review.authorUsername || 'Community member'}</Text>
           <Text style={styles.caption}>Enjoyment {review.enjoymentRating}/10 · Budget {review.budgetRating}/10</Text>
           {!!review.writtenReview && <Text style={styles.body}>{review.writtenReview}</Text>}
+          {review.tagNames.length > 0 && <Text style={styles.caption}>{review.tagNames.join(' · ')}</Text>}
         </View>
       ))}
       {status === 'loading' && <ActivityIndicator color={colors.primary} accessibilityLabel="Loading reviews" />}
@@ -95,9 +98,22 @@ function PlaceReviews({ id }: { id: string }) {
   );
 }
 
-function PlaceContent({ place }: { place: PlaceDetails }) {
+function PlaceContent({ place, focused, reviewVersion, onReviewSubmitted }: {
+  place: PlaceDetails;
+  focused: boolean;
+  reviewVersion: number;
+  onReviewSubmitted: () => void;
+}) {
   const router = useRouter();
   const [imageFailed, setImageFailed] = useState(false);
+  const [writingReview, setWritingReview] = useState(false);
+  const [published, setPublished] = useState(false);
+  const sample = isSamplePlace(place.id);
+
+  const signIn = () => {
+    setWritingReview(false);
+    router.push({ pathname: '/login', params: { returnTo: 'place', placeId: place.id } });
+  };
   const categoryImage = place.category === 'Attractions' || place.category === 'Restaurants' || place.category === 'Shops'
     ? images[place.category]
     : images.placeholder;
@@ -121,11 +137,11 @@ function PlaceContent({ place }: { place: PlaceDetails }) {
         <Text style={styles.expense}>{formatExpense(place.estimatedCost, place.currency)}</Text>
         <View style={styles.ratings}>
           <View style={styles.rating}>
-            <Text style={styles.caption}>Enjoyment</Text>
+            <Text style={styles.caption}>Average enjoyment</Text>
             <Text style={styles.score}>{formatRating(place.enjoymentRating)}</Text>
           </View>
           <View style={styles.rating}>
-            <Text style={styles.caption}>Budget</Text>
+            <Text style={styles.caption}>Average budget</Text>
             <Text style={styles.score}>{formatRating(place.budgetRating)}</Text>
           </View>
         </View>
@@ -136,23 +152,38 @@ function PlaceContent({ place }: { place: PlaceDetails }) {
           </View>
         )}
       </View>
-      <PlaceReviews id={place.id} />
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.navigate({
-          pathname: '/(tabs)/reviews',
-          params: { placeName: place.name, placeAddress: place.address, reviewRequest: String(Date.now()) },
-        })}
-        style={({ pressed }) => [styles.reviewButton, pressed && styles.pressed]}
-      >
-        <Text style={styles.reviewButtonText}>Write a Review</Text>
-      </Pressable>
+      {sample ? (
+        <Pressable accessibilityRole="button" style={styles.linkButton} onPress={() => router.navigate('/(tabs)/reviews')}>
+          <Text style={styles.link}>Find a place to review</Text>
+        </Pressable>
+      ) : (
+        <>
+          <Pressable accessibilityRole="button" onPress={() => {
+            if (!isSignedIn()) return signIn();
+            setPublished(false);
+            setWritingReview(true);
+          }} style={({ pressed }) => [styles.reviewButton, pressed && styles.pressed]}>
+            <Text style={styles.reviewButtonText}>Write a Review</Text>
+          </Pressable>
+          {published && <Text accessibilityLiveRegion="polite" style={styles.caption}>Review published.</Text>}
+          {focused && <PlaceReviews key={reviewVersion} id={place.id} />}
+        </>
+      )}
+      {writingReview && (
+        <ReviewDialog dialog={{ mode: 'compose', place: { id: Number(place.id), name: place.name, address: place.address } }}
+          onClose={() => setWritingReview(false)} onSignIn={signIn} onSubmitted={() => {
+            setWritingReview(false);
+            setPublished(true);
+            onReviewSubmitted();
+          }} />
+      )}
     </>
   );
 }
 
 function PlaceDetailsScreen({ id, from }: { id: string; from?: string }) {
   const router = useRouter();
+  const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const back = destinations.find((item) => item.tab === from) ?? explore;
   const [place, setPlace] = useState<PlaceDetails | null>();
@@ -160,14 +191,16 @@ function PlaceDetailsScreen({ id, from }: { id: string; from?: string }) {
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    if (!focused) return;
     const controller = new AbortController();
+    setFailed(false);
     getPlaceDetails(id, controller.signal).then((result) => {
       if (!controller.signal.aborted) setPlace(result);
     }).catch(() => {
       if (!controller.signal.aborted) setFailed(true);
     });
     return () => controller.abort();
-  }, [id, attempt]);
+  }, [id, attempt, focused]);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: 112 + insets.bottom }}>
@@ -201,7 +234,8 @@ function PlaceDetailsScreen({ id, from }: { id: string; from?: string }) {
         ) : place === null ? (
           <Text style={[styles.body, styles.message]}>Place not found.</Text>
         ) : (
-          <PlaceContent place={place} />
+          <PlaceContent place={place} focused={focused} reviewVersion={attempt}
+            onReviewSubmitted={() => setAttempt((value) => value + 1)} />
         )}
       </View>
     </ScrollView>
