@@ -2,6 +2,7 @@ package com.TripToGo.TTGBackend.Services;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -83,20 +84,30 @@ public class ReviewService {
                 .map(review -> toResponse(review, false));
     }
 
-    public ReviewResponseDTO getReview(int reviewId) {
-        Review review = reviews.findById(reviewId).orElseThrow(ReviewService::reviewNotFound);
-        return toResponse(review, true);
+    public Page<ReviewResponseDTO> submittedBy(User user, int page) {
+        return reviews.findByUser_UserId(user.getUserId(), pageRequest(page, RECENT_REVIEWS))
+                .map(review -> toResponse(review, true));
     }
 
-    public Page<ReviewResponseDTO> pending(int page) {
+    public ReviewResponseDTO getReview(int reviewId, User viewer) {
+        Review review = reviews.findById(reviewId).orElseThrow(ReviewService::reviewNotFound);
+        if (review.getStatus() == ReviewStatus.VERIFIED) return toResponse(review, false);
+        if (viewer != null) {
+            boolean isAuthor = review.getUser() != null && viewer.getUserId().equals(review.getUser().getUserId());
+            if (isAuthor || accounts.findAdmin(viewer.getUserId()).isPresent()) return toResponse(review, true);
+        }
+        throw reviewNotFound();
+    }
+
+    public Page<ReviewResponseDTO> pending(User user, int page) {
+        requireAdmin(user);
         return reviews.findByStatusIn(List.of(ReviewStatus.PENDING_LOCATION, ReviewStatus.PENDING),
                 pageRequest(page, Sort.by("creationDate", "reviewID")))
                 .map(review -> toResponse(review, true));
     }
 
     @Transactional
-    public ReviewResponseDTO submit(ReviewRequestDTO request) {
-        int userId = requireWholeNumber(request.userId(), 1, Integer.MAX_VALUE, "userId");
+    public ReviewResponseDTO submit(User user, ReviewRequestDTO request) {
         boolean existingLocation = request.locationId() != null;
         if (existingLocation == (request.newLocation() != null)) {
             throw badRequest("Supply either locationId or newLocation.");
@@ -105,9 +116,6 @@ public class ReviewService {
                 ? requireWholeNumber(request.locationId(), 1, Integer.MAX_VALUE, "locationId")
                 : null;
         ReviewLocationProposal proposal = existingLocation ? null : normalizeProposal(request.newLocation());
-
-        User user = accounts.findByUserId(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User was not found."));
 
         Review review = new Review();
         review.setUser(user);
@@ -131,9 +139,9 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponseDTO approveLocation(int reviewId, String adminUsername) {
+    public ReviewResponseDTO approveLocation(int reviewId, User user) {
+        requireAdmin(user);
         Review review = lockReview(reviewId);
-        lockAdmin(adminUsername);
         if (review.getLocation() != null && (review.getStatus() == ReviewStatus.PENDING
                 || review.getStatus() == ReviewStatus.VERIFIED) && review.getProposedLocation() != null) {
             return toResponse(review, true);
@@ -154,9 +162,9 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResponseDTO approveReview(int reviewId, String admin) {
+    public ReviewResponseDTO approveReview(int reviewId, User user) {
+        Admin admin = requireAdmin(user);
         Review review = lockReview(reviewId);
-        Admin adminUsername = lockAdmin(admin);
         if (review.getStatus() == ReviewStatus.VERIFIED) {
             return toResponse(review, true);
         }
@@ -164,14 +172,14 @@ public class ReviewService {
             throw conflict("The location must be approved before the review can be verified.");
         }
         review.setLocation(lockLocation(review.getLocation().getLocationID()));
-        verify(review, adminUsername);
+        verify(review, admin);
         return toResponse(review, true);
     }
 
     @Transactional
-    public ReviewResponseDTO rejectReview(int reviewId, String adminUsername) {
+    public ReviewResponseDTO rejectReview(int reviewId, User user) {
+        Admin admin = requireAdmin(user);
         Review review = lockReview(reviewId);
-        Admin admin = lockAdmin(adminUsername);
         if (review.getStatus() == ReviewStatus.VERIFIED) {
             throw conflict("This review has already been verified.");
         }
@@ -191,10 +199,9 @@ public class ReviewService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location was not found."));
     }
 
-    private Admin lockAdmin(String username)
-    {
-        return accounts.findAdmin(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Must be an Admin to approve."));
+    private Admin requireAdmin(User user) {
+        return accounts.findAdmin(user.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access is required."));
     }
 
     private Optional<Location> matchingLocation(ReviewLocationProposal proposal) {
@@ -220,7 +227,7 @@ public class ReviewService {
 
     private Set<Tag> resolveTags(List<String> codes) {
         if (codes == null || codes.isEmpty()) {
-            throw badRequest("Select at least one tag.");
+            return Set.of();
         }
         Set<String> normalizedCodes = new HashSet<>();
         for (String code : codes) {
@@ -272,14 +279,11 @@ public class ReviewService {
     }
 
     private static String normalizeReviewText(String value) {
-        if (value == null) {
-            return null;
+        String text = value == null ? "" : Normalizer.normalize(value, Normalizer.Form.NFKC).strip();
+        if (text.isEmpty() || text.length() > 2_000 || text.indexOf(0) >= 0) {
+            throw badRequest("Write a comment between 1 and 2000 characters.");
         }
-        String text = Normalizer.normalize(value, Normalizer.Form.NFKC).strip();
-        if (text.length() > 2_000 || text.indexOf(0) >= 0) {
-            throw badRequest("writtenReview must contain at most 2000 valid characters.");
-        }
-        return text.isEmpty() ? null : text;
+        return text;
     }
 
     private static PageRequest pageRequest(int page, Sort sort) {
@@ -298,12 +302,16 @@ public class ReviewService {
                     new Address(proposal.getCountry(), proposal.getProvince(), proposal.getCity(), proposal.getBarangay()));
         }
         String locationName = location != null ? location.getLocName() : details == null ? null : details.name();
+        Address locationAddress = location == null ? null
+                : new Address(location.getCountry(), location.getProvince(), location.getCity(), location.getBarangay());
         User author = review.getUser();
+        List<Tag> reviewTags = review.getTags().stream().sorted(Comparator.comparing(Tag::getCode)).toList();
         return new ReviewResponseDTO(review.getReviewID(),
                 author == null ? null : author.getUserId(),
                 location == null ? null : location.getLocationID(),
-                locationName, details, author == null ? null : author.getUsername(),
-                review.getTags().stream().map(tag -> tag.getCode().strip()).sorted().toList(),
+                locationName, locationAddress, details, author == null ? null : author.getUsername(),
+                reviewTags.stream().map(tag -> tag.getCode().strip()).toList(),
+                reviewTags.stream().map(Tag::getName).toList(),
                 review.getEnjoymentRating(), review.getBudgetRating(), review.getWrittenReview(),
                 review.getStatus(), review.getCreationDate());
     }

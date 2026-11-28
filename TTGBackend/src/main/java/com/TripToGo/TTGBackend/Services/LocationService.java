@@ -207,8 +207,8 @@ public class LocationService {
                 .toList();
         Address address = new Address(location.getCountry(), location.getProvince(),
                 location.getCity(), location.getBarangay());
-        double enjoyment = ratings == null ? location.getEnjoymentRating() : ratings.getEnjoymentRating();
-        double budget = ratings == null ? location.getBudgetRating() : ratings.getBudgetRating();
+        double enjoyment = ratings == null ? 0 : ratings.getEnjoymentRating();
+        double budget = ratings == null ? 0 : ratings.getBudgetRating();
         return new LocationResponseDTO(location.getLocationID(), location.getLocName(),
                 address, location.getDescription(), options, enjoyment, budget);
     }

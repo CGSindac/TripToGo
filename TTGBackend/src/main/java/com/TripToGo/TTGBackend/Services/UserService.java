@@ -3,7 +3,11 @@ package com.TripToGo.TTGBackend.Services;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.TripToGo.TTGBackend.DTOs.UserDTOs.UserResponseDTO;
 import com.TripToGo.TTGBackend.DTOs.UserDTOs.UserRegisterDTO;
@@ -13,6 +17,8 @@ import jakarta.transaction.Transactional;
 
 @Service 
 public class UserService {
+    private static final String HASH_PREFIX = "{pbkdf2}";
+    private static final Pbkdf2PasswordEncoder PASSWORDS = Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8();
     
     private final UserRepository userRepository;
     
@@ -46,15 +52,54 @@ public class UserService {
         UserRegisterDTO newUser
     )
     {
+        if (newUser == null || newUser.getUsername() == null || newUser.getEmail() == null
+                || newUser.getPassword() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username, email, and password are required.");
+        }
+        String username = newUser.getUsername().strip();
+        String email = newUser.getEmail().strip();
+        String password = newUser.getPassword();
+        if (!username.matches("[A-Za-z0-9_.]{3,50}") || email.length() > 100
+                || !email.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")
+                || password.length() < 8 || password.length() > 255) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid username, email, and password.");
+        }
         User user = new User();
-        
-        // TODO: Add password hashing function before saving to Database
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPasswordHash(encodePassword(password));
+        try {
+            return userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "That username or email is already taken.");
+        }
+    }
 
-        user.setUsername(newUser.getUsername());
-        user.setEmail(newUser.getEmail());
-        user.setPasswordHash(newUser.getPassword());
+    @Transactional
+    public User authenticate(String login, String password) {
+        if (login == null || password == null || password.length() > 255) {
+            throw invalidLogin();
+        }
+        String identifier = login.strip();
+        User user = (identifier.contains("@") ? userRepository.findByEmail(identifier)
+                : userRepository.findByUsername(identifier)).filter(User::isActive).orElseThrow(UserService::invalidLogin);
+        String stored = user.getPasswordHash();
+        if (stored.startsWith(HASH_PREFIX)) {
+            if (!PASSWORDS.matches(password, stored.substring(HASH_PREFIX.length()))) throw invalidLogin();
+        } else {
+            // Earlier versions stored passwords directly. Upgrade them after a successful login.
+            if (!stored.equals(password)) throw invalidLogin();
+            user.setPasswordHash(encodePassword(password));
+        }
+        return user;
+    }
 
-        return userRepository.save(user);
+    private static String encodePassword(String password) {
+        return HASH_PREFIX + PASSWORDS.encode(password);
+    }
+
+    private static ResponseStatusException invalidLogin() {
+        return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Incorrect email, username, or password.");
     }
 
     @Transactional 
