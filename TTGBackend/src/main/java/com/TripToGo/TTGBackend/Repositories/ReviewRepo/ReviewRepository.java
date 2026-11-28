@@ -33,6 +33,8 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
 
     Page<Review> findByLocation_LocationIdAndStatus(Integer locationId, ReviewStatus status, Pageable page);
 
+    Page<Review> findByUser_UserId(Integer userId, Pageable page);
+
     boolean existsByLocation_LocationId(Integer locationId);
 
     @Query("""

@@ -16,8 +16,8 @@ public interface ReviewAccountRepository extends Repository<User, Integer> {
 
     Optional<User> findByUsername(String username);
 
-    @Query("select a from Admin a where a.user.username = :username")
-    Optional<Admin> findAdmin(String username);
+    @Query("select a from Admin a where a.user.userId = :userId")
+    Optional<Admin> findAdmin(Integer userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.username = :username")
