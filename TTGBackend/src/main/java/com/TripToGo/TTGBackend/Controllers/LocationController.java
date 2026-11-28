@@ -6,6 +6,7 @@ import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,22 +42,26 @@ public class LocationController {
     }
 
     @GetMapping("/locations")
+    @CrossOrigin
     public PagedModel<LocationResponseDTO> browse(@RequestParam(defaultValue = "") String search,
             @RequestParam(required = false) List<String> tags, @RequestParam(defaultValue = "0") int page) {
         return new PagedModel<>(locations.browse(search, tags, page));
     }
 
     @GetMapping({"/locations/{locationId}", "/locations/s/{locationId}"})
+    @CrossOrigin
     public LocationResponseDTO getLocation(@PathVariable int locationId) {
         return locations.get(locationId);
     }
 
     @GetMapping("/locations/tags")
+    @CrossOrigin
     public List<TagOption> tags() {
         return reviews.tagOptions();
     }
 
     @GetMapping("/locations/{locationId}/reviews")
+    @CrossOrigin
     public PagedModel<ReviewResponseDTO> reviews(@PathVariable int locationId,
             @RequestParam(defaultValue = "0") int page) {
         return new PagedModel<>(reviews.publishedForLocation(locationId, page));
