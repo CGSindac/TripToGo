@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.util.List;
     
 public record ReviewRequestDTO(
-        BigDecimal userId,
         BigDecimal locationId,
         NewLocation newLocation,
         List<String> tagCodes,

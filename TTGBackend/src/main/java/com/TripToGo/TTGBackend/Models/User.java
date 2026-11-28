@@ -4,7 +4,10 @@ import java.time.LocalDateTime;
 
 import java.util.List;
 
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,7 +38,8 @@ public class User {
     @Column (length = 100, nullable = false, unique = true)
     private String email;
 
-    @Column (name = "active")
+    @ColumnDefault("true")
+    @Column (name = "active", nullable = false)
     private boolean active = true;
 
     @CreationTimestamp 
@@ -50,8 +54,10 @@ public class User {
     // Getters
     public Integer getUserId() { return userId; }
     public String getUsername() { return username; }
+    @JsonIgnore
     public String getPasswordHash() { return passwordHash; }
     public String getEmail() {return email; }
+    public boolean isActive() { return active; }
     public LocalDateTime getCreationDate() { return creationDate; }
 
     // Setters
